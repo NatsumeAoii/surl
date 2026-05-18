@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S.url - Redirecting</title>
+    <meta name="description" content="Preview and resolve S.url short links.">
+    <meta name="robots" content="noindex,follow">
+    <link rel="icon" type="image/svg+xml" href="/surl/favicon.svg">
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; connect-src https://script.google.com https://script.googleusercontent.com; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0
+        }
+
+        body {
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #0f0f1a;
+            color: #eaeaf0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center
+        }
+
+        .wrap {
+            text-align: center;
+            padding: 32px;
+            max-width: 420px;
+            width: 100%
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255, 255, 255, .15);
+            border-top-color: #818cf8;
+            border-radius: 50%;
+            animation: spin .7s linear infinite;
+            margin: 0 auto 20px
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg)
+            }
+        }
+
+        h2 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px
+        }
+
+        p {
+            color: #9ca3af;
+            font-size: 14px;
+            line-height: 1.5
+        }
+
+        .msg {
+            margin-top: 12px;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, .06);
+            border: 1px solid rgba(255, 255, 255, .1);
+            border-radius: 8px;
+            font-size: 13px
+        }
+
+        .preview-box {
+            margin: 20px 0;
+            padding: 16px;
+            background: rgba(255, 255, 255, .06);
+            border: 1px solid rgba(255, 255, 255, .1);
+            border-radius: 8px;
+            text-align: left
+        }
+
+        .label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            color: #9ca3af;
+            margin-bottom: 4px
+        }
+
+        .domain {
+            font-size: 16px;
+            font-weight: 600;
+            color: #818cf8;
+            word-break: break-all
+        }
+
+        .meta {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-top: 6px
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+            justify-content: center
+        }
+
+        .btn {
+            min-height: 44px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background .2s, transform .1s
+        }
+
+        .btn:focus-visible,
+        input:focus-visible,
+        textarea:focus-visible {
+            outline: 2px solid #818cf8;
+            outline-offset: 2px
+        }
+
+        .btn:active {
+            transform: scale(.97)
+        }
+
+        .btn-primary {
+            background: #818cf8;
+            color: #fff
+        }
+
+        .btn-primary:hover {
+            background: #6366f1
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: #eaeaf0;
+            border: 1px solid rgba(255, 255, 255, .18)
+        }
+
+        .btn-ghost:hover {
+            background: rgba(255, 255, 255, .06)
+        }
+
+        .btn-danger {
+            background: transparent;
+            color: #f87171;
+            border: 1px solid rgba(248, 113, 113, .3);
+            font-size: 12px;
+            padding: 6px 12px
+        }
+
+        .btn-danger:hover {
+            background: rgba(248, 113, 113, .1)
+        }
+
+        .report-actions {
+            margin-top: 16px
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            padding: 12px 14px;
+            font: inherit;
+            font-size: 14px;
+            color: #eaeaf0;
+            background: rgba(255, 255, 255, .06);
+            border: 1px solid rgba(255, 255, 255, .12);
+            border-radius: 8px;
+            outline: none;
+            margin-top: 8px
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+            font-size: 13px
+        }
+
+        .error {
+            color: #f87171;
+            font-size: 13px;
+            margin-top: 8px
+        }
+
+        .hidden {
+            display: none
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: .01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: .01ms !important
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main class="wrap" aria-live="polite">
+        <section id="s-loading">
+            <div class="spinner" aria-hidden="true"></div>
+            <h2>Redirecting...</h2>
+            <p>Please wait while we find your link.</p>
+        </section>
+
+        <section id="s-preview" class="hidden">
+            <h2>You're about to visit</h2>
+            <div class="preview-box">
+                <div class="label">Destination</div>
+                <div class="domain" id="preview-domain"></div>
+                <div class="meta" id="preview-meta"></div>
+            </div>
+            <div class="btn-row">
+                <button class="btn btn-primary" id="btn-proceed" type="button" title="Continue to the destination URL">Continue</button>
+                <button class="btn btn-ghost" id="btn-cancel-preview" type="button" title="Return to S.url">Cancel</button>
+            </div>
+            <div class="report-actions">
+                <button class="btn btn-danger" id="btn-show-report" type="button" title="Open abuse report form">Report this link</button>
+            </div>
+        </section>
+
+        <section id="s-password" class="hidden">
+            <h2>Password Required</h2>
+            <p>This link is protected. Enter the password to continue.</p>
+            <input type="password" id="pwd-input" placeholder="Enter password" autocomplete="current-password" title="Enter the password for this protected link">
+            <div class="error hidden" id="pwd-error"></div>
+            <div class="btn-row">
+                <button class="btn btn-primary" id="btn-unlock" type="button" title="Unlock protected link">Unlock</button>
+                <button class="btn btn-ghost" id="btn-cancel-password" type="button" title="Return to S.url">Cancel</button>
+            </div>
+        </section>
+
+        <section id="s-error" class="hidden">
+            <h2 id="err-title">Link Not Found</h2>
+            <p id="err-msg">This short URL does not exist or has been removed.</p>
+            <div class="btn-row">
+                <button class="btn btn-primary" id="btn-home" type="button" title="Return to S.url home">Go to S.url</button>
+            </div>
+        </section>
+
+        <section id="s-report" class="hidden">
+            <h2>Report Abusive Link</h2>
+            <p>Help us by explaining why this link is harmful.</p>
+            <textarea id="report-reason" placeholder="Describe the issue, such as spam, phishing, or malware." maxlength="500" title="Describe why this link is harmful"></textarea>
+            <div class="error hidden" id="report-error"></div>
+            <div class="btn-row">
+                <button class="btn btn-primary" id="btn-submit-report" type="button" title="Submit abuse report">Submit Report</button>
+                <button class="btn btn-ghost" id="btn-cancel-report" type="button" title="Cancel report and return to preview">Cancel</button>
+            </div>
+            <div class="msg hidden" id="report-success">Thank you. Your report has been submitted.</div>
+        </section>
+    </main>
+
+    <script>
+        (function () {
+            var BASE_PATH = '/surl/';
+            var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzL4HuT8WGLg5hJB-OCZozdNl7npwdP6z2cCkNFQ6A-1t03PcHntLH53tOFYpfbJ8Tr/exec';
+            var REQUEST_TIMEOUT_MS = 10000;
+
+            var slug = location.pathname;
+            if (slug.indexOf(BASE_PATH) === 0) slug = slug.substring(BASE_PATH.length);
+            slug = slug.replace(/^\/+|\/+$/g, '');
+            if (!slug) {
+                location.replace(BASE_PATH);
+                return;
+            }
+
+            var $ = function (id) { return document.getElementById(id); };
+            var states = ['s-loading', 's-preview', 's-password', 's-error', 's-report'];
+
+            function showState(id) {
+                states.forEach(function (state) { $(state).classList.toggle('hidden', state !== id); });
+            }
+
+            function api(action, params) {
+                var controller = new AbortController();
+                var timeout = setTimeout(function () { controller.abort(); }, REQUEST_TIMEOUT_MS);
+                var body = Object.assign({ action: action }, params || {});
+
+                return fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+                    body: JSON.stringify(body),
+                    cache: 'no-store',
+                    redirect: 'follow',
+                    signal: controller.signal
+                }).then(function (response) {
+                    if (!response.ok) throw new Error('HTTP_' + response.status);
+                    return response.json();
+                }).finally(function () {
+                    clearTimeout(timeout);
+                });
+            }
+
+            function isSafeHttpUrl(value) {
+                try {
+                    var url = new URL(value);
+                    return (url.protocol === 'http:' || url.protocol === 'https:') && !url.username && !url.password;
+                } catch (error) {
+                    return false;
+                }
+            }
+
+            function fail(title, message) {
+                $('err-title').textContent = title;
+                $('err-msg').textContent = message;
+                showState('s-error');
+            }
+
+            function goHome() {
+                location.href = BASE_PATH;
+            }
+
+            function resolveLink(password) {
+                showState('s-loading');
+                return api('read', { name: slug, password: password || '' })
+                    .then(function (data) {
+                        if (data.ok && data.url && isSafeHttpUrl(data.url)) {
+                            location.replace(data.url);
+                            return;
+                        }
+                        if (data.code === 'LINK_EXPIRED' || data.error === 'expired') {
+                            fail('Link Expired', 'This short URL has expired and is no longer available.');
+                        } else if (data.code === 'WRONG_PASSWORD' || data.error === 'wrong_password') {
+                            showState('s-password');
+                            $('pwd-error').textContent = 'Incorrect password.';
+                            $('pwd-error').classList.remove('hidden');
+                        } else if (data.code === 'PASSWORD_REQUIRED' || data.needsPassword) {
+                            showState('s-password');
+                        } else {
+                            fail('Link Not Found', 'This short URL does not exist or has been removed.');
+                        }
+                    })
+                    .catch(function () {
+                        fail('Network Error', 'Could not resolve this link. Please try again.');
+                    });
+            }
+
+            function setupPreview() {
+                $('btn-proceed').onclick = function () { resolveLink(''); };
+                $('btn-show-report').onclick = function () { showState('s-report'); };
+            }
+
+            function setupPassword() {
+                var unlock = function () {
+                    var password = $('pwd-input').value.trim();
+                    if (!password) {
+                        $('pwd-error').textContent = 'Please enter a password.';
+                        $('pwd-error').classList.remove('hidden');
+                        return;
+                    }
+                    $('pwd-error').classList.add('hidden');
+                    resolveLink(password);
+                };
+                $('btn-unlock').onclick = unlock;
+                $('pwd-input').onkeydown = function (event) {
+                    if (event.key === 'Enter') unlock();
+                };
+            }
+
+            function setupReport() {
+                $('btn-submit-report').onclick = function () {
+                    var reason = $('report-reason').value.trim();
+                    if (reason.length < 5) {
+                        $('report-error').textContent = 'Please provide at least 5 characters.';
+                        $('report-error').classList.remove('hidden');
+                        return;
+                    }
+
+                    $('report-error').classList.add('hidden');
+                    api('report', { name: slug, reason: reason })
+                        .then(function (data) {
+                            if (data.ok) {
+                                $('report-success').classList.remove('hidden');
+                                $('btn-submit-report').disabled = true;
+                            } else {
+                                $('report-error').textContent = data.error || 'Failed to submit report.';
+                                $('report-error').classList.remove('hidden');
+                            }
+                        })
+                        .catch(function () {
+                            $('report-error').textContent = 'Network error. Please try again.';
+                            $('report-error').classList.remove('hidden');
+                        });
+                };
+            }
+
+            $('btn-cancel-preview').onclick = goHome;
+            $('btn-cancel-password').onclick = goHome;
+            $('btn-home').onclick = goHome;
+            $('btn-cancel-report').onclick = function () { showState('s-preview'); };
+            setupPreview();
+            setupPassword();
+            setupReport();
+
+            api('preview', { name: slug })
+                .then(function (data) {
+                    if (!data.ok) {
+                        fail('Link Not Found', 'This short URL does not exist or has been removed.');
+                        return;
+                    }
+
+                    if (data.isExpired) {
+                        fail('Link Expired', 'This short URL has expired and is no longer available.');
+                        return;
+                    }
+
+                    if (data.hasPassword) {
+                        showState('s-password');
+                        $('pwd-input').focus();
+                        return;
+                    }
+
+                    $('preview-domain').textContent = data.domain || slug;
+                    $('preview-meta').textContent = data.expiry ? 'Expires: ' + new Date(data.expiry).toLocaleString() : '';
+                    showState('s-preview');
+                })
+                .catch(function () {
+                    fail('Network Error', 'Could not load this link. Please try again.');
+                });
+        })();
+    </script>
+</body>
+
+</html>

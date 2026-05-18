@@ -1,0 +1,25 @@
+{
+    "name": "S.url",
+    "short_name": "S",
+    "description": "Serverless, safe, secure, and fast.",
+    "id": "/surl/",
+    "start_url": "/surl/",
+    "scope": "/surl/",
+    "display": "standalone",
+    "background_color": "#0f0f1a",
+    "theme_color": "#0f0f1a",
+    "orientation": "portrait-primary",
+    "lang": "en",
+    "categories": [
+        "productivity",
+        "utilities"
+    ],
+    "icons": [
+        {
+            "src": "favicon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        }
+    ]
+}

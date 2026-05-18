@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /surl/
+
+Sitemap: https://natsumeaoii.github.io/surl/sitemap.xml
