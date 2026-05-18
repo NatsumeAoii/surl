@@ -229,17 +229,24 @@ export default function App() {
 
     useEffect(() => {
         if (!loading) {
-            setRequestProgress(getRequestProgress(0, config.requestTimeoutMs));
-            return;
+            const resetTimer = window.setTimeout(() => {
+                setRequestProgress(getRequestProgress(0, config.requestTimeoutMs));
+            }, 0);
+            return () => window.clearTimeout(resetTimer);
         }
 
         const startedAt = Date.now();
-        setRequestProgress(getRequestProgress(0, config.requestTimeoutMs));
-        const timer = window.setInterval(() => {
+        const startTimer = window.setTimeout(() => {
+            setRequestProgress(getRequestProgress(0, config.requestTimeoutMs));
+        }, 0);
+        const interval = window.setInterval(() => {
             setRequestProgress(getRequestProgress(Date.now() - startedAt, config.requestTimeoutMs));
         }, 350);
 
-        return () => window.clearInterval(timer);
+        return () => {
+            window.clearTimeout(startTimer);
+            window.clearInterval(interval);
+        };
     }, [loading]);
 
     const showToast = useCallback((msg: string) => {
