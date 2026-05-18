@@ -8,7 +8,7 @@ interface CallScriptOptions {
     retries?: number;
 }
 
-const DEFAULT_TIMEOUT_MS = 10_000;
+const DEFAULT_TIMEOUT_MS = 30_000;
 const RETRY_BASE_DELAY_MS = 250;
 const RETRY_MAX_DELAY_MS = 2_000;
 const MAX_SCRIPT_REQUEST_URL_LENGTH = 12_000;

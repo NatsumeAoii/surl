@@ -1,6 +1,6 @@
 /// <reference lib="webworker" />
 
-const CACHE_NAME = 'ntsm-url-v3';
+const CACHE_NAME = 'ntsm-url-v4';
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const STATIC_ASSETS = [
     '/surl/',
@@ -46,6 +46,21 @@ async function matchFresh(cache, request) {
     return cached;
 }
 
+async function fallbackNavigation(cache, request, url) {
+    const cached = await matchFresh(cache, request);
+    if (cached) return cached;
+
+    if (url.pathname.startsWith('/surl/') && url.pathname !== '/surl/') {
+        return await matchFresh(cache, '/surl/404.html')
+            || await matchFresh(cache, '/surl/index.html')
+            || Response.error();
+    }
+
+    return await matchFresh(cache, '/surl/index.html')
+        || await matchFresh(cache, '/surl/404.html')
+        || Response.error();
+}
+
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
@@ -83,10 +98,7 @@ self.addEventListener('fetch', (event) => {
                 })
                 .catch(async () => {
                     const cache = await caches.open(CACHE_NAME);
-                    return await matchFresh(cache, event.request)
-                        || await matchFresh(cache, '/surl/index.html')
-                        || await matchFresh(cache, '/surl/404.html')
-                        || Response.error();
+                    return fallbackNavigation(cache, event.request, url);
                 })
         );
         return;

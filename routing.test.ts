@@ -1,11 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import viteConfig from './vite.config.ts';
+import viteConfig, { isLocalShortLinkRoute } from './vite.config.ts';
 
 const BASE_PATH = '/surl/';
 const PRODUCTION_URL = 'https://natsumeaoii.github.io/surl/';
 const OLD_BASE_PATH = '/natsume-url/';
-const OLD_PRODUCTION_URL = 'https://natsumeaoii.github.io/natsume-url/';
+const OLD_PRODUCTION_URL = 'https://natsumeaoii.github.io/surl//';
+const WRONG_BASE_PATH = '/s-url/';
+const WRONG_PRODUCTION_URL = 'https://natsumeaoii.github.io/s-url/';
 
 function readText(path: string): string {
     return readFileSync(new URL(path, import.meta.url), 'utf8');
@@ -28,6 +30,34 @@ describe('GitHub Pages routing configuration', () => {
             port: 5174,
             strictPort: true,
         });
+    });
+
+    it('serves short-link fallback routes locally during development', () => {
+        const configSource = readText('./vite.config.ts');
+        const config = viteConfig as {
+            plugins?: Array<{ name?: string; apply?: string; configureServer?: unknown }>;
+        };
+
+        expect(
+            config.plugins?.some(
+                (plugin) =>
+                    plugin.name === 'surl-local-short-link-fallback' &&
+                    plugin.apply === 'serve' &&
+                    typeof plugin.configureServer === 'function',
+            ),
+        ).toBe(true);
+        expect(isLocalShortLinkRoute('/surl/example')).toBe(true);
+        expect(isLocalShortLinkRoute('/surl/example?preview=1')).toBe(true);
+        expect(isLocalShortLinkRoute('/surl/')).toBe(false);
+        expect(isLocalShortLinkRoute('/surl/index.html')).toBe(false);
+        expect(isLocalShortLinkRoute('/surl/manifest.json')).toBe(false);
+        expect(isLocalShortLinkRoute('/surl/assets/index.js')).toBe(false);
+        expect(isLocalShortLinkRoute('/surl/@vite/client')).toBe(false);
+        expect(isLocalShortLinkRoute('/surl/@react-refresh')).toBe(false);
+        expect(isLocalShortLinkRoute('/surl/src/main.tsx?sw-clear=1')).toBe(false);
+        expect(isLocalShortLinkRoute('/surl/node_modules/.vite/deps/react.js')).toBe(false);
+        expect(isLocalShortLinkRoute('/s-url/example')).toBe(false);
+        expect(configSource).toContain('request.url = `${basePath}404.html`;');
     });
 
     it('keeps static fallback and PWA routes under the current repository path', () => {
@@ -53,10 +83,13 @@ describe('GitHub Pages routing configuration', () => {
         expect(index).toContain('href="favicon.svg"');
         expect(index).not.toContain('href="%BASE_URL%manifest.json"');
         expect(index).not.toContain('href="%BASE_URL%favicon.svg"');
-        expect(index).not.toContain('href="/surl/manifest.json"');
-        expect(index).not.toContain('href="/surl/favicon.svg"');
+        expect(index).not.toContain('href="/s-url/manifest.json"');
+        expect(index).not.toContain('href="/s-url/favicon.svg"');
+        expect(fallback).not.toContain(WRONG_BASE_PATH);
+        expect(serviceWorker).not.toContain(WRONG_BASE_PATH);
         expect(serviceWorker).toContain(`'${BASE_PATH}'`);
         expect(serviceWorker).not.toContain(OLD_BASE_PATH);
+        expect(serviceWorker).toContain('fallbackNavigation');
     });
 
     it('loads a cache-busted dev entry and disables PWA caching during development', () => {
@@ -102,6 +135,8 @@ describe('GitHub Pages routing configuration', () => {
         expect(files).toContain(PRODUCTION_URL);
         expect(files).not.toContain(OLD_PRODUCTION_URL);
         expect(files).not.toContain(OLD_BASE_PATH);
+        expect(files).not.toContain(WRONG_PRODUCTION_URL);
+        expect(files).not.toContain(WRONG_BASE_PATH);
     });
 
     it('keeps Apps Script short-link responses on the current production URL', () => {
@@ -113,5 +148,6 @@ describe('GitHub Pages routing configuration', () => {
 
         expect(scripts).toContain(PRODUCTION_URL);
         expect(scripts).not.toContain(OLD_PRODUCTION_URL);
+        expect(scripts).not.toContain(WRONG_PRODUCTION_URL);
     });
 });

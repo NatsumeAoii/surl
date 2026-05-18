@@ -2,8 +2,8 @@
  * S.url configuration.
  *
  * Values are read from environment variables (see .env.example).
- * public/404.html has its own SCRIPT_URL and BASE_PATH because it runs
- * outside React/Vite on GitHub Pages fallback routes.
+ * public/404.html and public/report.html keep their own static API URLs
+ * because they run outside React/Vite on GitHub Pages fallback routes.
  */
 
 export const config = {
@@ -20,5 +20,5 @@ export const config = {
     aliasLength: 6,
     aliasChars: 'abcdefghjkmnpqrstuvwxyz23456789',
     maxBulkUrls: 10,
-    requestTimeoutMs: 10_000,
+    requestTimeoutMs: 30_000,
 } as const;

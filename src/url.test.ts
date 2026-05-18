@@ -3,6 +3,7 @@ import {
     MAX_PASSWORD_LENGTH,
     formatLocalDatetime,
     getMinExpiryDatetimeLocal,
+    normalizeShortUrl,
     sanitizeAliasInput,
     toUtcIsoFromDatetimeLocal,
     validateTargetUrl,
@@ -61,5 +62,23 @@ describe('alias and expiry helpers', () => {
         const iso = toUtcIsoFromDatetimeLocal('2026-05-11T09:07');
         expect(Number.isNaN(Date.parse(iso))).toBe(false);
         expect(toUtcIsoFromDatetimeLocal('not-a-date')).toBe('');
+    });
+
+    it('normalizes API-returned short URLs to the current app base path', () => {
+        expect(
+            normalizeShortUrl(
+                'https://natsumeaoii.github.io/natsume-url/b5qpe6',
+                'https://natsumeaoii.github.io',
+                '/surl/',
+            ),
+        ).toBe('https://natsumeaoii.github.io/surl/b5qpe6');
+
+        expect(
+            normalizeShortUrl(
+                'https://natsumeaoii.github.io/s-url/b5qpe6',
+                'http://127.0.0.1:5174',
+                '/surl/',
+            ),
+        ).toBe('http://127.0.0.1:5174/surl/b5qpe6');
     });
 });

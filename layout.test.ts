@@ -6,6 +6,19 @@ function readText(path: string): string {
 }
 
 describe('workspace layout structure', () => {
+    it('shows staged request progress while shortening is pending', () => {
+        const app = readText('./src/App.tsx');
+        const css = readText('./src/index.css');
+
+        expect(app).toContain('function RequestProgress');
+        expect(app).toContain('role="progressbar"');
+        expect(app).toContain('aria-valuenow={progress.percent}');
+        expect(app).toContain('<RequestProgress progress={requestProgress} />');
+        expect(css).toContain('.request-progress');
+        expect(css).toContain('.request-progress__bar-fill');
+        expect(css).toContain('@media (prefers-reduced-motion: reduce)');
+    });
+
     it('provides reusable tooltips across compact actions and fallback controls', () => {
         const app = readText('./src/App.tsx');
         const css = readText('./src/index.css');
@@ -47,7 +60,23 @@ describe('workspace layout structure', () => {
         expect(consent).toContain('data-tooltip="Allow anonymous usage cookies"');
         expect(consent).toContain('data-tooltip="Keep the banner hidden for now"');
         expect(fallback).toContain('title="Continue to the destination URL"');
-        expect(fallback).toContain('title="Submit abuse report"');
+        expect(fallback).toContain('title="Open abuse report form"');
+        expect(fallback).toContain('<div class="eyebrow">Preview</div>');
+        expect(fallback).toContain(
+            'Open this link only if the destination is expected and trusted.',
+        );
+        expect(fallback).toContain('Open destination');
+        expect(fallback).toContain("fail('Network error'");
+        expect(fallback).toContain('Could not load this link. Please try again.');
+        expect(fallback).toContain('<div class="browser-preview" id="browser-preview" hidden>');
+        expect(fallback).toContain('id="preview-frame"');
+        expect(fallback).toContain('sandbox="allow-scripts allow-presentation"');
+        expect(fallback).not.toContain('allow-same-origin');
+        expect(fallback).toContain('referrerpolicy="no-referrer"');
+        expect(fallback).toContain('setDestinationPreview');
+        expect(fallback).toContain('loadDestinationPreview');
+        expect(fallback).toContain("api('read', { name: slug, password: '' })");
+        expect(fallback).toContain('Some destinations block embedded previews');
         expect(tooltipCount).toBeGreaterThanOrEqual(30);
     });
 
@@ -67,9 +96,11 @@ describe('workspace layout structure', () => {
             "tagline: import.meta.env.VITE_TAGLINE || 'Serverless, safe, secure, and fast.'",
         );
         expect(app).toContain('<p className="brand-subtitle">{config.tagline}</p>');
+        expect(app).toContain('download="surl-qr.png"');
         expect(app).not.toContain(
             '<p className="brand-subtitle">Serverless, safe, secure, and fast.</p>',
         );
+        expect(app).not.toContain('download="s-url-qr.png"');
         expect(app).not.toContain('Serverless link console');
         expect(staticBrandFiles).toContain('S.url');
         expect(staticBrandFiles).not.toContain('NTSM.url');

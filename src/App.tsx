@@ -10,9 +10,10 @@ import {
 } from 'react';
 import { ApiError, callScript } from './api.ts';
 import { config } from './config.ts';
-import { getUID, hasConsent, appendAnalytics } from './fingerprint.ts';
+import { getUID, hasConsent, appendAnalytics, getNetworkParams } from './fingerprint.ts';
 import { generateQRCodeDataURL } from './qrcode.ts';
 import { fireConfetti } from './confetti.ts';
+import { getRequestProgress, type RequestProgressState } from './loadingProgress.ts';
 import {
     SunIcon,
     MoonIcon,
@@ -34,6 +35,7 @@ import {
     MAX_PASSWORD_LENGTH,
     formatExpiry,
     getMinExpiryDatetimeLocal,
+    normalizeShortUrl,
     sanitizeAliasInput,
     toUtcIsoFromDatetimeLocal,
     validateTargetUrl,
@@ -99,6 +101,19 @@ function getAnalyticsParams(): Record<string, string> {
     return Object.fromEntries(new URLSearchParams(query));
 }
 
+function hasNetworkPayload(params: {
+    ip?: unknown;
+    country?: unknown;
+    region?: unknown;
+    city?: unknown;
+    tz?: unknown;
+    network?: unknown;
+}): boolean {
+    return Boolean(
+        params.ip || params.country || params.region || params.city || params.tz || params.network,
+    );
+}
+
 async function copyText(text: string): Promise<boolean> {
     try {
         if (navigator.clipboard && window.isSecureContext) {
@@ -123,6 +138,31 @@ async function copyText(text: string): Promise<boolean> {
     } finally {
         textarea.remove();
     }
+}
+
+function RequestProgress({ progress }: { progress: RequestProgressState }) {
+    return (
+        <div className="request-progress" role="status" aria-live="polite">
+            <div className="request-progress__header">
+                <span>{progress.label}</span>
+                <strong>{progress.percent}%</strong>
+            </div>
+            <div
+                className="request-progress__bar"
+                role="progressbar"
+                aria-label="Shortener request progress"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={progress.percent}
+            >
+                <span
+                    className="request-progress__bar-fill"
+                    style={{ width: `${progress.percent}%` }}
+                />
+            </div>
+            <p>{progress.detail}</p>
+        </div>
+    );
 }
 
 export default function App() {
@@ -163,6 +203,9 @@ export default function App() {
 
     const [view, setView] = useState<'form' | 'result' | 'bulk-result'>('form');
     const [transitioning, setTransitioning] = useState(false);
+    const [requestProgress, setRequestProgress] = useState<RequestProgressState>(() =>
+        getRequestProgress(0, config.requestTimeoutMs),
+    );
 
     const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
     const urlInputRef = useRef<HTMLInputElement>(null);
@@ -183,6 +226,21 @@ export default function App() {
         window.addEventListener('ntsm:consent', onConsent);
         return () => window.removeEventListener('ntsm:consent', onConsent);
     }, []);
+
+    useEffect(() => {
+        if (!loading) {
+            setRequestProgress(getRequestProgress(0, config.requestTimeoutMs));
+            return;
+        }
+
+        const startedAt = Date.now();
+        setRequestProgress(getRequestProgress(0, config.requestTimeoutMs));
+        const timer = window.setInterval(() => {
+            setRequestProgress(getRequestProgress(Date.now() - startedAt, config.requestTimeoutMs));
+        }, 350);
+
+        return () => window.clearInterval(timer);
+    }, [loading]);
 
     const showToast = useCallback((msg: string) => {
         setToast(msg);
@@ -244,9 +302,13 @@ export default function App() {
 
             if (historyRequestId.current !== requestId) return;
             if (data.ok && data.links) {
-                setHistoryLinks(data.links);
+                const normalizedLinks = data.links.map((link) => ({
+                    ...link,
+                    shortUrl: normalizeShortUrl(link.shortUrl),
+                }));
+                setHistoryLinks(normalizedLinks);
                 setHistoryError(
-                    data.links.length === 0 ? 'No links found. Shorten your first URL!' : '',
+                    normalizedLinks.length === 0 ? 'No links found. Shorten your first URL!' : '',
                 );
             } else {
                 setHistoryLinks([]);
@@ -303,6 +365,7 @@ export default function App() {
         setLoading(true);
 
         try {
+            const networkParams = await getNetworkParams();
             const data = await callScript<{
                 ok: boolean;
                 shortUrl?: string;
@@ -310,11 +373,13 @@ export default function App() {
                 reused?: boolean;
                 expiry?: string;
                 isProtected?: boolean;
+                metadataStored?: boolean;
             }>(
                 config.scriptUrl,
                 'write',
                 {
                     ...getAnalyticsParams(),
+                    ...networkParams,
                     name: shortAlias,
                     url: validation.normalized,
                     expiry: expiryIso,
@@ -324,11 +389,18 @@ export default function App() {
             );
 
             if (data.ok && data.shortUrl) {
-                setResultUrl(data.shortUrl);
-                setQrDataUrl(generateQRCodeDataURL(data.shortUrl, 200));
+                const normalizedShortUrl = normalizeShortUrl(data.shortUrl);
+                setResultUrl(normalizedShortUrl);
+                setQrDataUrl(generateQRCodeDataURL(normalizedShortUrl, 200));
                 setResultExpiry(data.expiry || expiryIso);
                 setResultProtected(data.isProtected || !!password);
-                showToast(data.reused ? 'URL already exists. Here it is.' : 'Short URL created.');
+                if (hasNetworkPayload(networkParams) && data.metadataStored !== true) {
+                    showToast('Short URL created, but metadata storage is not confirmed.');
+                } else {
+                    showToast(
+                        data.reused ? 'URL already exists. Here it is.' : 'Short URL created.',
+                    );
+                }
                 transitionTo('result');
                 if (!data.reused) setTimeout(() => fireConfetti(), 300);
             } else {
@@ -382,20 +454,27 @@ export default function App() {
         setLoading(true);
 
         try {
+            const networkParams = await getNetworkParams();
             const data = await callScript<{ ok: boolean; results?: BulkResult[]; error?: string }>(
                 config.scriptUrl,
                 'bulk',
                 {
                     ...getAnalyticsParams(),
+                    ...networkParams,
                     urls: JSON.stringify(normalizedLines),
                 },
                 { timeoutMs: config.requestTimeoutMs },
             );
 
             if (data.ok && data.results) {
-                setBulkResults(data.results);
+                const normalizedResults = data.results.map((result) =>
+                    result.shortUrl
+                        ? { ...result, shortUrl: normalizeShortUrl(result.shortUrl) }
+                        : result,
+                );
+                setBulkResults(normalizedResults);
                 transitionTo('bulk-result');
-                const successCount = data.results.filter((r) => r.ok).length;
+                const successCount = normalizedResults.filter((r) => r.ok).length;
                 showToast(`${successCount}/${lines.length} URLs shortened.`);
                 if (successCount > 0) setTimeout(() => fireConfetti(), 300);
             } else {
@@ -771,6 +850,8 @@ export default function App() {
                                             </p>
                                         )}
 
+                                        {loading && <RequestProgress progress={requestProgress} />}
+
                                         <button
                                             className="btn btn-primary"
                                             type="submit"
@@ -836,6 +917,8 @@ export default function App() {
                                                 {error}
                                             </p>
                                         )}
+
+                                        {loading && <RequestProgress progress={requestProgress} />}
 
                                         <button
                                             className="btn btn-primary"
@@ -938,7 +1021,7 @@ export default function App() {
                                         />
                                         <a
                                             href={qrDataUrl}
-                                            download="s-url-qr.png"
+                                            download="surl-qr.png"
                                             className="btn btn-ghost btn-sm"
                                             data-tooltip="Download QR image"
                                         >

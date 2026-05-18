@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; connect-src https://script.google.com https://script.googleusercontent.com https://ipapi.co http://localhost:* http://127.0.0.1:*; img-src 'self' data:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'self'; form-action 'none'"
+    />
+    <title>Report Link - S.url</title>
+    <meta name="description" content="Report a suspicious or broken S.url short link." />
+    <meta name="robots" content="noindex,nofollow" />
+    <link rel="icon" type="image/svg+xml" href="/surl/favicon.svg" />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #101318;
+        --surface: #171b22;
+        --surface-soft: #1e242d;
+        --surface-strong: #252d37;
+        --text: #eef2f4;
+        --text-muted: #aab3bd;
+        --border: #303945;
+        --border-strong: #465261;
+        --primary: #69b8cc;
+        --primary-hover: #8ccbdd;
+        --primary-soft: rgba(105, 184, 204, 0.14);
+        --danger: #ef8b84;
+        --danger-soft: rgba(239, 139, 132, 0.13);
+        --success: #69c79a;
+        --success-soft: rgba(105, 199, 154, 0.14);
+        --shadow-panel: 0 18px 50px rgba(0, 0, 0, 0.28);
+        --radius: 8px;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        min-height: 100vh;
+        color: var(--text);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: linear-gradient(180deg, var(--surface-strong), transparent 340px), var(--bg);
+      }
+
+      button,
+      select,
+      textarea {
+        font: inherit;
+      }
+
+      .page {
+        width: min(100% - 32px, 720px);
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        margin: 0 auto;
+        padding: 24px 0;
+      }
+
+      .panel {
+        width: 100%;
+        padding: 22px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-panel);
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 18px;
+        color: var(--text);
+        font-size: 14px;
+        font-weight: 850;
+        text-decoration: none;
+      }
+
+      .brand-mark {
+        width: 36px;
+        height: 36px;
+        display: grid;
+        place-items: center;
+        color: var(--primary);
+        background: var(--primary-soft);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        min-height: 28px;
+        align-items: center;
+        padding: 4px 10px;
+        margin-bottom: 10px;
+        color: var(--danger);
+        font-size: 12px;
+        font-weight: 850;
+        background: var(--danger-soft);
+        border-radius: 999px;
+      }
+
+      h1 {
+        font-size: clamp(22px, 5vw, 30px);
+        line-height: 1.18;
+        letter-spacing: 0;
+      }
+
+      .lede {
+        max-width: 560px;
+        margin-top: 7px;
+        color: var(--text-muted);
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .target-grid {
+        display: grid;
+        gap: 10px;
+        margin: 18px 0;
+      }
+
+      .target {
+        display: grid;
+        gap: 6px;
+        padding: 14px;
+        background: var(--surface-soft);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+      }
+
+      .label {
+        color: var(--text-muted);
+        font-size: 12px;
+        font-weight: 850;
+        text-transform: uppercase;
+      }
+
+      .target strong,
+      .target code {
+        color: var(--primary);
+        font-size: 15px;
+        font-weight: 850;
+        overflow-wrap: anywhere;
+      }
+
+      form {
+        display: grid;
+        gap: 14px;
+      }
+
+      label {
+        display: grid;
+        gap: 7px;
+        color: var(--text-muted);
+        font-size: 12px;
+        font-weight: 850;
+        text-transform: uppercase;
+      }
+
+      select,
+      textarea {
+        width: 100%;
+        color: var(--text);
+        background: var(--surface-soft);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        outline: none;
+      }
+
+      select {
+        min-height: 48px;
+        padding: 0 14px;
+      }
+
+      textarea {
+        min-height: 132px;
+        resize: vertical;
+        padding: 13px 14px;
+        line-height: 1.5;
+      }
+
+      select:focus-visible,
+      textarea:focus-visible,
+      .button:focus-visible {
+        outline: 2px solid var(--primary);
+        outline-offset: 2px;
+      }
+
+      .status {
+        min-height: 21px;
+        color: var(--text-muted);
+        font-size: 13px;
+        font-weight: 750;
+      }
+
+      .status[data-kind="error"] {
+        color: var(--danger);
+      }
+
+      .status[data-kind="success"] {
+        color: var(--success);
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .button {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 16px;
+        color: var(--text);
+        font-size: 14px;
+        font-weight: 850;
+        text-decoration: none;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        cursor: pointer;
+      }
+
+      .button-primary {
+        color: #ffffff;
+        background: var(--primary);
+        border-color: var(--primary);
+      }
+
+      .button-primary:hover {
+        background: var(--primary-hover);
+      }
+
+      .button-danger {
+        color: var(--danger);
+        background: var(--danger-soft);
+        border-color: transparent;
+      }
+
+      .button:disabled {
+        cursor: not-allowed;
+        opacity: 0.58;
+      }
+
+      @media (max-width: 560px) {
+        .page {
+          width: min(100% - 24px, 720px);
+          place-items: stretch;
+        }
+
+        .panel {
+          padding: 18px;
+        }
+
+        .actions {
+          flex-direction: column;
+        }
+
+        .button {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="panel" aria-labelledby="report-title">
+        <a class="brand" href="/surl/" aria-label="Back to S.url">
+          <span class="brand-mark" aria-hidden="true">S</span>
+          <span>S.url</span>
+        </a>
+
+        <div class="eyebrow">Report</div>
+        <h1 id="report-title">Report this short link</h1>
+        <p class="lede">
+          Use this for phishing, malware, spam, or a destination that does not match what the short link claims.
+        </p>
+
+        <div class="target-grid">
+          <div class="target" aria-live="polite">
+            <div class="label">Short code</div>
+            <strong id="short-code">Unknown link</strong>
+          </div>
+
+          <div class="target" id="destination-panel" hidden>
+            <div class="label">Destination shown on preview page</div>
+            <code id="destination-url"></code>
+          </div>
+        </div>
+
+        <form id="report-form" novalidate>
+          <label>
+            Reason
+            <select id="reason" name="reason" required>
+              <option value="Malicious or phishing">Malicious or phishing</option>
+              <option value="Spam or abuse">Spam or abuse</option>
+              <option value="Broken or misleading destination">Broken or misleading destination</option>
+              <option value="Other concern">Other concern</option>
+            </select>
+          </label>
+
+          <label>
+            Details
+            <textarea
+              id="details"
+              name="details"
+              maxlength="360"
+              placeholder="Optional context. Do not include passwords, tokens, or private personal data."
+            ></textarea>
+          </label>
+
+          <p class="status" id="status" role="status" aria-live="polite"></p>
+
+          <div class="actions">
+            <button class="button button-danger" id="submit-button" type="submit">Submit report</button>
+            <button class="button" id="back-preview-button" type="button">Back to preview</button>
+            <a class="button" href="/surl/">Back homepage</a>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <script>
+      (function () {
+        'use strict';
+
+        var API_URL =
+          'https://script.google.com/macros/s/AKfycbzL4HuT8WGLg5hJB-OCZozdNl7npwdP6z2cCkNFQ6A-1t03PcHntLH53tOFYpfbJ8Tr/exec';
+        var NETWORK_LOOKUP_URL = 'https://ipapi.co/json/';
+        var REQUEST_TIMEOUT_MS = 30000;
+        var NETWORK_TIMEOUT_MS = 2500;
+        var params = new URLSearchParams(window.location.search);
+        var slug = (params.get('slug') || '').trim();
+        var destination = (params.get('url') || '').trim();
+        var slugPattern = /^[A-Za-z0-9_-]{1,64}$/;
+        var form = document.getElementById('report-form');
+        var button = document.getElementById('submit-button');
+        var status = document.getElementById('status');
+
+        function backToPreviousPage() {
+          if (document.referrer) {
+            try {
+              var referrer = new URL(document.referrer);
+              if (referrer.origin === location.origin && referrer.pathname.indexOf('/surl/') === 0) {
+                window.history.back();
+                return;
+              }
+            } catch (_) {
+              // Fall through to deterministic local navigation.
+            }
+          }
+
+          if (slugPattern.test(slug)) {
+            location.href = '/surl/' + encodeURIComponent(slug);
+            return;
+          }
+
+          location.href = '/surl/';
+        }
+
+        function setStatus(message, kind) {
+          status.textContent = message;
+          status.dataset.kind = kind || '';
+        }
+
+        function isSafeHttpUrl(value) {
+          try {
+            var url = new URL(value);
+            return (url.protocol === 'http:' || url.protocol === 'https:') && !url.username && !url.password;
+          } catch (_) {
+            return false;
+          }
+        }
+
+        function cleanNetworkField(value, maxLength) {
+          return String(value || '')
+            .replace(/[\x00-\x1f\x7f]/g, '')
+            .trim()
+            .replace(/^[=+\-@]+/, '')
+            .trim()
+            .slice(0, maxLength || 64);
+        }
+
+        function cleanIp(value) {
+          var ip = cleanNetworkField(value, 45);
+          return /^[a-fA-F0-9:.]+$/.test(ip) ? ip : '';
+        }
+
+        function getNetworkContext() {
+          var controller = new AbortController();
+          var timeout = setTimeout(function () {
+            controller.abort();
+          }, NETWORK_TIMEOUT_MS);
+
+          return fetch(NETWORK_LOOKUP_URL, {
+            cache: 'no-store',
+            signal: controller.signal,
+          })
+            .then(function (response) {
+              if (!response.ok) return {};
+              return response.json();
+            })
+            .then(function (data) {
+              data = data || {};
+              return {
+                ip: cleanIp(data.ip),
+                country: cleanNetworkField(data.country_name || data.country),
+                region: cleanNetworkField(data.region || data.region_code || data.city || data.country_name),
+                city: cleanNetworkField(data.city),
+                tz: cleanNetworkField(data.timezone),
+              };
+            })
+            .catch(function () {
+              return {};
+            })
+            .then(function (networkContext) {
+              Object.keys(networkContext).forEach(function (key) {
+                if (!networkContext[key]) delete networkContext[key];
+              });
+              if (Object.keys(networkContext).length > 0) {
+                networkContext.network = JSON.stringify(networkContext);
+                networkContext.metadataVersion = 2;
+              }
+              return networkContext;
+            })
+            .finally(function () {
+              clearTimeout(timeout);
+            });
+        }
+
+        function api(action, payload) {
+          var controller = new AbortController();
+          var timeout = setTimeout(function () {
+            controller.abort();
+          }, REQUEST_TIMEOUT_MS);
+          var url = new URL(API_URL);
+          var body = Object.assign({ action: action }, payload || {});
+
+          Object.keys(body).forEach(function (key) {
+            if (body[key] !== undefined && body[key] !== null) {
+              url.searchParams.set(key, String(body[key]));
+            }
+          });
+
+          return fetch(url.toString(), {
+            method: 'GET',
+            cache: 'no-store',
+            redirect: 'follow',
+            signal: controller.signal,
+          })
+            .then(function (response) {
+              if (!response.ok) throw new Error('REPORT_HTTP_ERROR');
+              return response.json();
+            })
+            .finally(function () {
+              clearTimeout(timeout);
+            });
+        }
+
+        function getSelectedReason() {
+          return document.getElementById('reason').value;
+        }
+
+        function getDescription() {
+          return document.getElementById('details').value.trim().slice(0, 500);
+        }
+
+        function getSafeDestination() {
+          return destination && isSafeHttpUrl(destination) ? destination : '';
+        }
+
+        if (slugPattern.test(slug)) {
+          document.getElementById('short-code').textContent = slug;
+        } else {
+          button.disabled = true;
+          setStatus('This report link is missing a valid short code.', 'error');
+        }
+
+        if (destination && isSafeHttpUrl(destination)) {
+          document.getElementById('destination-panel').hidden = false;
+          document.getElementById('destination-url').textContent = destination;
+        }
+
+        document.getElementById('back-preview-button').addEventListener('click', backToPreviousPage);
+
+        form.addEventListener('submit', function (event) {
+          event.preventDefault();
+
+          if (!slugPattern.test(slug)) {
+            setStatus('This report link is missing a valid short code.', 'error');
+            return;
+          }
+
+          button.disabled = true;
+          setStatus('Submitting report...', '');
+
+          getNetworkContext()
+            .then(function (networkContext) {
+              return api(
+                'report',
+                Object.assign({}, networkContext, {
+                  name: slug,
+                  reason: getSelectedReason(),
+                  description: getDescription(),
+                  destination: getSafeDestination(),
+                }),
+              );
+            })
+            .then(function (data) {
+              if (!data || data.ok === false) throw new Error('REPORT_REJECTED');
+              setStatus('Report submitted. Thank you for helping keep links safer.', 'success');
+            })
+            .catch(function () {
+              button.disabled = false;
+              setStatus('Report could not be submitted right now. Please try again later.', 'error');
+            });
+        });
+      })();
+    </script>
+  </body>
+</html>

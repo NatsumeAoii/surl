@@ -16,6 +16,13 @@ https://natsumeaoii.github.io/surl/
 - Stores link data in a Google Sheet through a Google Apps Script web app.
 - Provides a redirect preview page and abuse report flow.
 - Shows link history only after cookie consent.
+- Tracks successful redirect access counts and coarse creator/report network metadata.
+
+## Developer Docs
+
+- [Quick start](docs/QUICK_START.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
 
 ## Quick Start
 
@@ -34,7 +41,7 @@ npm run dev
 The local Vite server is configured in `vite.config.ts`:
 
 ```text
-http://127.0.0.1:5174/
+http://127.0.0.1:5174/surl/
 ```
 
 The app can render without a custom `.env`, but real API calls depend on a valid Google Apps Script deployment URL.
@@ -55,10 +62,12 @@ Copy `.env.example` to `.env` and set values for local development.
 
 </details>
 
-Important: `public/404.html` is served directly by GitHub Pages and does not read Vite environment variables. If the Apps Script deployment changes, update both:
+Important: `public/404.html` and `public/report.html` are served directly by GitHub Pages and do not read Vite environment variables. If the Apps Script deployment changes, update every client entry point that calls Apps Script:
 
 - `VITE_SCRIPT_URL` in `.env`
 - `SCRIPT_URL` inside `public/404.html`
+- `API_URL` inside `public/report.html`
+- The fallback URL in `src/config.ts`, unless CI injects `VITE_SCRIPT_URL`
 
 ## Google Apps Script Setup
 
@@ -78,20 +87,48 @@ The combined script writes to this sheet shape:
 <details>
 <summary><strong>Database columns</strong></summary>
 
-| Column        | Meaning                                    |
-| ------------- | ------------------------------------------ |
-| Timestamp     | ISO timestamp for creation.                |
-| Alias         | Short-link alias.                          |
-| URL           | Destination URL.                           |
-| UID           | Anonymous user ID when consent is granted. |
-| Device        | Coarse device category.                    |
-| Browser       | Browser family/version label.              |
-| OS            | Operating system label.                    |
-| Language      | Browser language.                          |
-| Referrer      | Referrer hostname when consent is granted. |
-| Screen        | Screen dimensions.                         |
-| Expiry        | Optional UTC expiry timestamp.             |
-| Password Hash | Optional salted password hash.             |
+| Column          | Meaning                                                       |
+| --------------- | ------------------------------------------------------------- |
+| Timestamp       | ISO timestamp for creation.                                   |
+| Alias           | Short-link alias.                                             |
+| Long link       | Destination URL.                                              |
+| uid             | Anonymous user ID when consent is granted.                    |
+| device          | Coarse device category.                                       |
+| browser         | Browser family/version label.                                 |
+| OS              | Operating system label.                                       |
+| lang            | Browser language.                                             |
+| referer         | Referrer hostname when consent is granted.                    |
+| screen          | Screen dimensions.                                            |
+| exp             | Optional UTC expiry timestamp.                                |
+| password hash   | Optional salted password hash.                                |
+| access count    | Number of successful read/redirect accesses.                  |
+| last accessed   | ISO timestamp for the most recent successful read/redirect.   |
+| creator IP      | Creator IP as reported by the browser-side network lookup.    |
+| creator IP hash | SHA-256 hash of the creator IP for privacy-preserving checks. |
+| country         | Creator country/region label from the network lookup.         |
+| region          | Creator region label, with city/country fallback.             |
+| city            | Creator city label from the network lookup.                   |
+| timezone        | Creator timezone label from the network lookup.               |
+
+</details>
+
+<details>
+<summary><strong>Report columns</strong></summary>
+
+| Column         | Meaning                                                      |
+| -------------- | ------------------------------------------------------------ |
+| Timestamp      | ISO timestamp for report submission.                         |
+| Alias          | Reported short-link alias.                                   |
+| Reason         | Selected report reason.                                      |
+| Description    | Optional reporter-provided context.                          |
+| Destination    | Destination URL shown in the report page context.            |
+| ReporterIp     | Reporter IP as reported by the browser-side network lookup.  |
+| ReporterIpHash | SHA-256 hash of the reporter IP.                             |
+| Country        | Reporter country/region label from the network lookup.       |
+| Region         | Reporter region label, with city/country fallback.           |
+| City           | Reporter city label from the network lookup.                 |
+| Timezone       | Reporter timezone label from the network lookup.             |
+| Reporter       | Reserved reporter identifier field. Currently blank.         |
 
 </details>
 
@@ -103,10 +140,11 @@ npm test
 npm run lint
 npm run format:check
 npm run build
-npm audit
+npm run validate:deploy
+npm audit --audit-level=moderate
 ```
 
-The deploy workflow also runs `npm ci`, `npm audit --audit-level=moderate`, tests, lint, format check, and build before publishing to GitHub Pages.
+The deploy workflow also runs `npm ci`, `npm audit --audit-level=moderate`, tests, lint, format check, build, deploy artifact validation, and a post-deploy GitHub Pages smoke check. Use `npm ci` when you want the same clean-install behavior as CI.
 
 ## Project Structure
 
@@ -116,6 +154,7 @@ src/
   api.ts               Apps Script HTTP client, timeouts, retries, safe errors
   config.ts            Vite-backed client config
   fingerprint.ts       Consent, UID cookie, coarse analytics helpers
+  loadingProgress.ts   Staged request progress model
   qrcode.ts            Dependency-free QR code renderer
   url.ts               URL, alias, password length, and date helpers
 public/
@@ -131,7 +170,7 @@ google/
 
 ## Architecture Overview
 
-The React app validates user input, sends `text/plain` JSON requests to the Apps Script web app through `src/api.ts`, and displays single-link, bulk, QR, share, and history workflows. Apps Script validates the same trust boundary again, applies rate limits, writes to Google Sheets, and returns structured JSON responses.
+The React app validates user input, sends CORS-compatible GET requests to the Apps Script web app through `src/api.ts`, and displays single-link, bulk, QR, share, and history workflows. Apps Script validates the same trust boundary again, applies rate limits, writes to Google Sheets, and returns structured JSON responses.
 
 For short links, GitHub Pages serves `public/404.html`. That file extracts the alias from the path, calls Apps Script for preview/read/report actions, and redirects only after validating that the resolved URL is `http` or `https` and has no embedded credentials.
 
@@ -151,6 +190,14 @@ npm audit
 
 Route-sensitive changes should also consider `routing.test.ts`, because this project is deployed under `/surl/`.
 
+For local short-link testing, run `npm run dev` and open a short-link route directly:
+
+```text
+http://127.0.0.1:5174/surl/example-alias
+```
+
+The dev server serves `public/404.html` for local `/surl/<alias>` routes so the redirect preview, owned error, password prompt, and report flow can be tested before GitHub Pages deployment.
+
 ## Deployment
 
 Deployment is handled by `.github/workflows/deploy.yml`.
@@ -167,7 +214,7 @@ GitHub Pages must be configured to use GitHub Actions as the source.
 <details>
 <summary><strong>The app opens, but shortening fails.</strong></summary>
 
-Check that `.env` contains a valid `VITE_SCRIPT_URL`, the Apps Script web app is deployed, and the deployment is accessible to `Anyone` as described above. Also update `SCRIPT_URL` in `public/404.html` for redirect fallback behavior.
+Check that `.env` contains a valid `VITE_SCRIPT_URL`, the Apps Script web app is deployed, and the deployment is accessible to `Anyone` as described above. Also update `SCRIPT_URL` in `public/404.html` and `API_URL` in `public/report.html` for static fallback behavior.
 
 </details>
 
@@ -188,7 +235,7 @@ The frontend uses Apps Script's GET response path because it returns JSON with C
 <details>
 <summary><strong>Short links work in the app but not through GitHub Pages routes.</strong></summary>
 
-The React app and `public/404.html` are separate entry points. Confirm the fallback file has the correct `BASE_PATH` and `SCRIPT_URL`, then run:
+The React app, `public/404.html`, and `public/report.html` are separate entry points. Confirm the fallback files have the correct `BASE_PATH`, `SCRIPT_URL`, and `API_URL`, then run:
 
 ```bash
 npm test -- routing.test.ts
@@ -223,7 +270,7 @@ Deploy `google/combined.gs`. The README and code comments describe it as the pre
 <details>
 <summary><strong>Why does `public/404.html` duplicate API configuration?</strong></summary>
 
-GitHub Pages serves `404.html` directly for short-link routes. It runs outside the Vite bundle, so it cannot read `import.meta.env` or `.env` values. That is why `SCRIPT_URL` and `BASE_PATH` are hardcoded there.
+GitHub Pages serves `404.html` and `report.html` directly for short-link support pages. They run outside the Vite bundle, so they cannot read `import.meta.env` or `.env` values. That is why `SCRIPT_URL`, `API_URL`, and `BASE_PATH` are hardcoded in those static files.
 
 </details>
 
@@ -244,7 +291,7 @@ History is derived from rows in the Google Sheet where the UID column matches th
 <details>
 <summary><strong>Are secrets committed?</strong></summary>
 
-`.env` files are ignored and `.env.example` contains only an example Apps Script URL. `public/404.html` and `src/config.ts` currently include a concrete Apps Script deployment URL as a public client endpoint, not a secret. Legacy reference scripts in `google/get.gs` and `google/post.gs` intentionally use `[FILL IN: Google Spreadsheet ID]` placeholders and should not be deployed without a real sheet ID.
+`.env` files are ignored and `.env.example` contains only an example Apps Script URL. `src/config.ts`, `public/404.html`, and `public/report.html` currently include a concrete Apps Script deployment URL as a public client endpoint, not a secret. `google/get.gs` and `google/post.gs` are inert legacy notices; deploy `google/combined.gs`.
 
 </details>
 
@@ -267,7 +314,7 @@ See `CONTRIBUTING.md`.
 
 ## Security
 
-See `SECURITY.md`. This repository still needs `[FILL IN: verified private security contact]` before a public security policy is complete.
+See `SECURITY.md`. This repository does not currently publish a verified private security contact, so the security policy is intentionally incomplete until the maintainer enables a private disclosure channel.
 
 ## Code of Conduct
 
@@ -275,4 +322,4 @@ See `CODE_OF_CONDUCT.md`.
 
 ## License
 
-MIT. See `LICENSE` or `LICENSE.md`.
+MIT. See `LICENSE` and `LICENSE.md`.

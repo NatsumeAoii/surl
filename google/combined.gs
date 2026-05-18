@@ -9,9 +9,10 @@
  * 5. Execute as: Me. Access: Anyone.
  *
  * Methods:
- * - POST is preferred. Send text/plain JSON to avoid CORS preflight:
- *   {"action":"write","name":"abc","url":"https://example.com"}
- * - GET remains supported for backward compatibility.
+ * - GET is preferred for browser calls from GitHub Pages because Apps Script
+ *   returns CORS-compatible JSON for this request path:
+ *   ?action=write&name=abc&url=https%3A%2F%2Fexample.com
+ * - POST remains supported for compatible non-browser callers.
  */
 
 var BASE_URL = 'https://natsumeaoii.github.io/surl/';
@@ -30,9 +31,22 @@ var MAX_PASSWORD_LENGTH = 128;
 var MAX_REPORT_REASON = 500;
 var MAX_REQUEST_BODY_LENGTH = 32 * 1024;
 var MAX_BULK_JSON_LENGTH = MAX_BULK_URLS * (MAX_URL_LENGTH + 16);
+var ACCESS_COUNT_COLUMN = 13;
+var LAST_ACCESSED_COLUMN = 14;
+var DATABASE_HEADERS = [
+  'Timestamp', 'Alias', 'Long link', 'uid', 'device', 'browser', 'OS', 'lang', 'referer', 'screen',
+  'exp', 'password hash', 'access count', 'last accessed', 'creator IP', 'creator IP hash',
+  'country', 'region', 'city', 'timezone',
+];
+var REPORT_HEADERS = [
+  'Timestamp', 'Alias', 'Reason', 'Description', 'Destination',
+  'ReporterIp', 'ReporterIpHash', 'Country', 'Region', 'City', 'Timezone', 'Reporter',
+];
 
 var RATE_LIMIT_MAX = 10;
 var RATE_LIMIT_GLOBAL_MAX = 120;
+var PASSWORD_RATE_LIMIT_MAX = 5;
+var PASSWORD_RATE_LIMIT_GLOBAL_MAX = 60;
 var RATE_LIMIT_WINDOW = 60;
 var LOCK_WAIT_MS = 5000;
 
@@ -108,11 +122,16 @@ function handleRead_(e) {
       if (!password) {
         return respond_(failure_('PASSWORD_REQUIRED', 'Password required.', { needsPassword: true }));
       }
+      var passwordLimit = checkPasswordAttemptRateLimit_(alias, getRequesterKey_(e));
+      if (!passwordLimit.allowed) {
+        return respond_(failure_('RATE_LIMITED', 'Too many password attempts. Try again in ' + passwordLimit.retryAfter + 's.', { needsPassword: true }));
+      }
       if (!verifyPassword_(password, storedHash)) {
         return respond_(failure_('WRONG_PASSWORD', 'Incorrect password.', { needsPassword: true }));
       }
     }
 
+    incrementAccessCounter_(sheet, i + 1, data[i]);
     return respond_({ ok: true, url: storedUrl });
   }
 
@@ -137,13 +156,15 @@ function handlePreview_(e) {
 
     var expiry = String(data[i][10] || '').trim();
     var hasPassword = !!String(data[i][11] || '').trim();
+    var isExpired = isExpired_(expiry);
 
     return respond_({
       ok: true,
       domain: extractDomain_(storedUrl) || alias,
       hasPassword: hasPassword,
       expiry: expiry || null,
-      isExpired: isExpired_(expiry),
+      isExpired: isExpired,
+      previewUrl: hasPassword || isExpired ? null : storedUrl,
     });
   }
 
@@ -188,14 +209,17 @@ function handleWrite_(e) {
     if (!sheet) {
       return respond_(failure_('DATABASE_UNAVAILABLE', 'Database unavailable. Ensure a "database" sheet tab exists.'));
     }
+    ensureDatabaseHeaders_(sheet);
 
     var data = sheet.getLastRow() > 0 ? sheet.getDataRange().getValues() : [];
     var existingAliases = buildAliasMap_(data);
+    var network = collectNetworkContext_(e);
 
     if (!passwordParam && !expiryParam) {
-      var reusableAlias = findReusableAliasForUrl_(data, targetUrl);
-      if (reusableAlias) {
-        return respond_({ ok: true, shortUrl: BASE_URL + reusableAlias, reused: true });
+      var reusable = findReusableRowForUrl_(data, targetUrl);
+      if (reusable) {
+        var metadataStored = updateNetworkMetadata_(sheet, reusable.rowNumber, reusable.row, network);
+        return respond_({ ok: true, shortUrl: BASE_URL + reusable.alias, reused: true, metadataStored: metadataStored });
       }
     }
 
@@ -221,13 +245,15 @@ function handleWrite_(e) {
     var analytics = collectAnalytics_(e);
     var passwordHash = passwordParam ? createPasswordHash_(passwordParam) : '';
 
-    sheet.appendRow([
+    appendDatabaseRow_(sheet, [
       new Date().toISOString(), alias, targetUrl,
       analytics.uid, analytics.device, analytics.browser, analytics.os, analytics.lang, analytics.ref, analytics.scr,
       expiryParam || '', passwordHash,
+      0, '', network.ip, network.ipHash, network.country, network.region, network.city, network.timezone,
     ]);
 
     var result = { ok: true, shortUrl: BASE_URL + alias };
+    result.metadataStored = hasNetworkMetadata_(network);
     if (expiryParam) result.expiry = expiryParam;
     if (passwordParam) result.isProtected = true;
 
@@ -271,10 +297,12 @@ function handleBulk_(e) {
   try {
     var sheet = getSheet_(SHEET_NAME);
     if (!sheet) return respond_(failure_('DATABASE_UNAVAILABLE', 'Database unavailable.'));
+    ensureDatabaseHeaders_(sheet);
 
     var data = sheet.getLastRow() > 0 ? sheet.getDataRange().getValues() : [];
     var existingAliases = buildAliasMap_(data);
     var analytics = collectAnalytics_(e);
+    var network = collectNetworkContext_(e);
     var preparedUrls = [];
     var requestedUrls = {};
     var results = [];
@@ -303,6 +331,8 @@ function handleBulk_(e) {
 
       var reusableAlias = reusableUrls[targetUrl];
       if (reusableAlias) {
+        var reusable = findReusableRowForUrl_(data, targetUrl);
+        if (reusable) updateNetworkMetadata_(sheet, reusable.rowNumber, reusable.row, network);
         results.push({ url: targetUrl, ok: true, shortUrl: BASE_URL + reusableAlias, reused: true });
         continue;
       }
@@ -315,8 +345,14 @@ function handleBulk_(e) {
 
       existingAliases[alias] = true;
       reusableUrls[targetUrl] = alias;
-      data.push([new Date().toISOString(), alias, targetUrl, analytics.uid, analytics.device, analytics.browser, analytics.os, analytics.lang, analytics.ref, analytics.scr, '', '']);
-      rows.push([new Date().toISOString(), alias, targetUrl, analytics.uid, analytics.device, analytics.browser, analytics.os, analytics.lang, analytics.ref, analytics.scr, '', '']);
+      var timestamp = new Date().toISOString();
+      var row = [
+        timestamp, alias, targetUrl,
+        analytics.uid, analytics.device, analytics.browser, analytics.os, analytics.lang, analytics.ref, analytics.scr,
+        '', '', 0, '', network.ip, network.ipHash, network.country, network.region, network.city, network.timezone,
+      ];
+      data.push(row);
+      rows.push(row);
       results.push({ url: targetUrl, ok: true, shortUrl: BASE_URL + alias });
     }
 
@@ -339,6 +375,9 @@ function handleReport_(e) {
 
   var alias = sanitizeAlias_(getParam_(e, 'name'));
   var reason = sanitizeReportReason_(getParam_(e, 'reason'));
+  var description = sanitizeReportReason_(getParam_(e, 'description') || getParam_(e, 'details'));
+  var destination = sanitizeReportDestination_(getParam_(e, 'destination') || getParam_(e, 'url'));
+  var network = collectNetworkContext_(e);
 
   if (!alias) return respond_(failure_('INVALID_ALIAS', 'Missing alias.'));
   if (!reason || reason.length < 5) {
@@ -351,10 +390,15 @@ function handleReport_(e) {
   var reportsSheet = ss.getSheetByName(REPORTS_SHEET);
   if (!reportsSheet) {
     reportsSheet = ss.insertSheet(REPORTS_SHEET);
-    reportsSheet.appendRow(['Timestamp', 'Alias', 'Reason', 'Reporter']);
+    reportsSheet.appendRow(REPORT_HEADERS);
+  } else {
+    ensureReportHeaders_(reportsSheet);
   }
 
-  reportsSheet.appendRow([new Date().toISOString(), alias, reason, '']);
+  reportsSheet.appendRow([
+    new Date().toISOString(), alias, reason, description, destination,
+    network.ip, network.ipHash, network.country, network.region, network.city, network.timezone, '',
+  ]);
   return respond_({ ok: true, message: 'Report submitted. Thank you.' });
 }
 
@@ -406,7 +450,7 @@ function normalizeEvent_(e) {
   var params = {};
   if (e && e.parameter) {
     for (var key in e.parameter) {
-      if (Object.prototype.hasOwnProperty.call(e.parameter, key)) {
+      if (Object.prototype.hasOwnProperty.call(e.parameter, key) && isSafeParamKey_(key)) {
         params[key] = stringifyParam_(e.parameter[key]);
       }
     }
@@ -423,7 +467,7 @@ function normalizeEvent_(e) {
   if (body) {
     var parsed = parseBody_(body);
     for (var parsedKey in parsed) {
-      if (Object.prototype.hasOwnProperty.call(parsed, parsedKey)) {
+      if (Object.prototype.hasOwnProperty.call(parsed, parsedKey) && isSafeParamKey_(parsedKey)) {
         params[parsedKey] = stringifyParam_(parsed[parsedKey]);
       }
     }
@@ -446,7 +490,10 @@ function parseBody_(body) {
       var key = index === -1 ? pair : pair.slice(0, index);
       var value = index === -1 ? '' : pair.slice(index + 1);
       try {
-        params[decodeURIComponent(key.replace(/\+/g, ' '))] = decodeURIComponent(value.replace(/\+/g, ' '));
+        var decodedKey = decodeURIComponent(key.replace(/\+/g, ' '));
+        if (isSafeParamKey_(decodedKey)) {
+          params[decodedKey] = decodeURIComponent(value.replace(/\+/g, ' '));
+        }
       } catch (_) {
         // Ignore malformed parameter encodings.
       }
@@ -459,6 +506,10 @@ function stringifyParam_(value) {
   if (value === null || typeof value === 'undefined') return '';
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
+}
+
+function isSafeParamKey_(key) {
+  return key !== '__proto__' && key !== 'constructor' && key !== 'prototype';
 }
 
 function getParam_(e, key) {
@@ -628,13 +679,22 @@ function buildReusableUrlMap_(data, requestedUrls) {
 }
 
 function findReusableAliasForUrl_(data, targetUrl) {
+  var reusable = findReusableRowForUrl_(data, targetUrl);
+  return reusable ? reusable.alias : '';
+}
+
+function findReusableRowForUrl_(data, targetUrl) {
   for (var i = 0; i < data.length; i++) {
     var storedUrl = String(data[i][2] || '').trim();
     if (storedUrl !== targetUrl) continue;
     if (!isReusableRow_(data[i])) continue;
-    return normalizeStoredAlias_(data[i][1]);
+    return {
+      alias: normalizeStoredAlias_(data[i][1]),
+      row: data[i],
+      rowNumber: i + 1,
+    };
   }
-  return '';
+  return null;
 }
 
 function isReusableRow_(row) {
@@ -655,6 +715,153 @@ function collectAnalytics_(e) {
     ref: sanitizeSheetCell_(sanitizeField_(getParam_(e, 'ref'), MAX_FIELD_LENGTH)),
     scr: sanitizeSheetCell_(sanitizeField_(getParam_(e, 'scr'), MAX_FIELD_LENGTH)),
   };
+}
+
+function collectNetworkContext_(e) {
+  var fallback = parseNetworkPayload_(getParam_(e, 'network'));
+  var ip = sanitizeIp_(getParam_(e, 'ip') || fallback.ip);
+  var country = sanitizeNetworkField_(getParam_(e, 'country') || fallback.country);
+  var city = sanitizeNetworkField_(getParam_(e, 'city') || fallback.city);
+  var region = sanitizeNetworkField_(getParam_(e, 'region') || fallback.region) || city || country;
+  return {
+    ip: ip,
+    ipHash: ip ? sha256Hex_(ip) : '',
+    country: country,
+    region: region,
+    city: city,
+    timezone: sanitizeNetworkField_(getParam_(e, 'tz') || getParam_(e, 'timezone') || fallback.tz || fallback.timezone),
+  };
+}
+
+function parseNetworkPayload_(raw) {
+  if (!raw) return {};
+  try {
+    var parsed = JSON.parse(String(raw));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function incrementAccessCounter_(sheet, rowNumber, row) {
+  try {
+    var current = parsePositiveInteger_((row || [])[ACCESS_COUNT_COLUMN - 1]);
+    var columnCount = LAST_ACCESSED_COLUMN - ACCESS_COUNT_COLUMN + 1;
+    sheet.getRange(rowNumber, ACCESS_COUNT_COLUMN, 1, columnCount).setValues([[current + 1, new Date().toISOString()]]);
+  } catch (_) {
+    // Counter writes must not break successful redirects.
+  }
+}
+
+function parsePositiveInteger_(value) {
+  var parsed = parseInt(String(value || '0'), 10);
+  return isNaN(parsed) || parsed < 0 ? 0 : parsed;
+}
+
+function sanitizeIp_(raw) {
+  var value = sanitizeField_(raw, 45);
+  if (!value || !/^[a-fA-F0-9:.]+$/.test(value)) return '';
+  return value;
+}
+
+function sanitizeNetworkField_(raw) {
+  return sanitizeSheetCell_(sanitizeField_(raw, MAX_FIELD_LENGTH));
+}
+
+function sanitizeReportDestination_(raw) {
+  var value = sanitizeField_(raw, MAX_URL_LENGTH);
+  if (!value || validateUrl_(value)) return '';
+  return sanitizeSheetCell_(value);
+}
+
+function ensureDatabaseHeaders_(sheet) {
+  try {
+    if (sheet.getLastRow() < 1) {
+      sheet.appendRow(DATABASE_HEADERS);
+      return;
+    }
+
+    var headerRange = sheet.getRange(1, 1, 1, DATABASE_HEADERS.length);
+    var headers = headerRange.getValues()[0] || [];
+    if (!isDatabaseHeaderRow_(headers)) return;
+
+    for (var i = 0; i < DATABASE_HEADERS.length; i++) {
+      if (headers[i] !== DATABASE_HEADERS[i]) {
+        headerRange.setValues([DATABASE_HEADERS]);
+        return;
+      }
+    }
+  } catch (_) {
+    // Link creation can still proceed if the header upgrade fails.
+  }
+}
+
+function isDatabaseHeaderRow_(headers) {
+  return String(headers[0] || '').toLowerCase() === 'timestamp'
+    && String(headers[1] || '').toLowerCase() === 'alias'
+    && String(headers[2] || '').toLowerCase() === 'long link';
+}
+
+function appendDatabaseRow_(sheet, row) {
+  var normalizedRow = row.slice(0, DATABASE_HEADERS.length);
+  while (normalizedRow.length < DATABASE_HEADERS.length) normalizedRow.push('');
+  sheet.getRange(sheet.getLastRow() + 1, 1, 1, DATABASE_HEADERS.length).setValues([normalizedRow]);
+}
+
+function updateNetworkMetadata_(sheet, rowNumber, row, network) {
+  if (!hasNetworkMetadata_(network)) return false;
+
+  var values = [
+    chooseMetadataValue_(row[14], network.ip),
+    chooseMetadataValue_(row[15], network.ipHash),
+    chooseMetadataValue_(row[16], network.country),
+    chooseMetadataValue_(row[17], network.region),
+    chooseMetadataValue_(row[18], network.city),
+    chooseMetadataValue_(row[19], network.timezone),
+  ];
+
+  if (values.join('|') === [
+    String(row[14] || ''),
+    String(row[15] || ''),
+    String(row[16] || ''),
+    String(row[17] || ''),
+    String(row[18] || ''),
+    String(row[19] || ''),
+  ].join('|')) {
+    return true;
+  }
+
+  sheet.getRange(rowNumber, 15, 1, values.length).setValues([values]);
+  return true;
+}
+
+function chooseMetadataValue_(storedValue, nextValue) {
+  var stored = String(storedValue || '');
+  return stored || String(nextValue || '');
+}
+
+function hasNetworkMetadata_(network) {
+  return !!(network && (network.ip || network.country || network.region || network.city || network.timezone));
+}
+
+function ensureReportHeaders_(sheet) {
+  try {
+    if (sheet.getLastRow() < 1) {
+      sheet.appendRow(REPORT_HEADERS);
+      return;
+    }
+
+    var headerRange = sheet.getRange(1, 1, 1, REPORT_HEADERS.length);
+    var headers = headerRange.getValues()[0] || [];
+    for (var i = 0; i < REPORT_HEADERS.length; i++) {
+      if (headers[i] !== REPORT_HEADERS[i]) {
+        headerRange.setValues([REPORT_HEADERS]);
+        return;
+      }
+    }
+  } catch (_) {
+    // Report submission can still proceed if the header upgrade fails.
+  }
 }
 
 function sanitizeField_(raw, maxLength) {
@@ -683,7 +890,7 @@ function generateUniqueAlias_(existingAliases) {
 }
 
 function generateAlias_() {
-  var bytes = Utilities.getUuid().replace(/-/g, '') + String(Math.random()).slice(2);
+  var bytes = getRandomHex_(ALIAS_GEN_LENGTH * 2);
   var result = '';
   for (var i = 0; i < ALIAS_GEN_LENGTH; i++) {
     var index = parseInt(bytes.substr(i * 2, 2), 16) % ALIAS_CHARS.length;
@@ -692,10 +899,25 @@ function generateAlias_() {
   return result;
 }
 
+function getRandomHex_(length) {
+  var hex = '';
+  while (hex.length < length) {
+    hex += Utilities.getUuid().replace(/-/g, '');
+  }
+  return hex.slice(0, length);
+}
+
 function checkActionRateLimit_(scope, identity) {
   var globalLimit = checkRateLimit_(scope + '_global', 'global', RATE_LIMIT_GLOBAL_MAX);
   if (!globalLimit.allowed) return globalLimit;
   return checkRateLimit_(scope, identity, RATE_LIMIT_MAX);
+}
+
+function checkPasswordAttemptRateLimit_(alias, identity) {
+  var scope = 'password_' + sanitizeAlias_(alias);
+  var globalLimit = checkRateLimit_(scope + '_global', 'global', PASSWORD_RATE_LIMIT_GLOBAL_MAX);
+  if (!globalLimit.allowed) return globalLimit;
+  return checkRateLimit_(scope, identity, PASSWORD_RATE_LIMIT_MAX);
 }
 
 function checkRateLimit_(scope, identity, maxRequests) {
@@ -740,9 +962,21 @@ function createPasswordHash_(password) {
 function verifyPassword_(password, storedHash) {
   var parts = String(storedHash || '').split(':');
   if (parts.length === 3 && parts[0] === 'v1') {
-    return sha256Hex_(parts[1] + ':' + password) === parts[2];
+    return constantTimeEquals_(sha256Hex_(parts[1] + ':' + password), parts[2]);
   }
-  return sha256Hex_(password) === storedHash;
+  return constantTimeEquals_(sha256Hex_(password), storedHash);
+}
+
+function constantTimeEquals_(left, right) {
+  left = String(left || '');
+  right = String(right || '');
+
+  var maxLength = Math.max(left.length, right.length);
+  var diff = left.length ^ right.length;
+  for (var i = 0; i < maxLength; i++) {
+    diff |= (left.charCodeAt(i) || 0) ^ (right.charCodeAt(i) || 0);
+  }
+  return diff === 0;
 }
 
 function sha256Hex_(value) {

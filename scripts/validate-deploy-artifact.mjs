@@ -22,6 +22,7 @@ function readDistFile(fileName) {
 const requiredFiles = [
     'index.html',
     '404.html',
+    'report.html',
     'manifest.json',
     'favicon.svg',
     'sw.js',

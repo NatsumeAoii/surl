@@ -26,8 +26,14 @@ Maintainers may remove comments, issues, pull requests, or contributions that vi
 
 ## Reporting
 
-Conduct report contact: `[FILL IN: verified private maintainer contact]`
+Private conduct report contact: not published in this repository.
 
-Report conduct concerns through the private channel above. Include relevant links, screenshots, and context when possible. Reports will be handled with discretion and only shared as needed to investigate and respond.
+This repository does not currently expose a verified private maintainer contact in the checked-in files. Before publishing this project for public community participation, the maintainer should add a monitored private reporting channel.
 
-Maintainer action required before publishing this project for public community use: replace the `[FILL IN]` contact with a verified private reporting contact. This repository does not currently publish a dedicated email address or private reporting URL.
+Until a private contact exists, use public issues only for non-sensitive conduct or project governance questions:
+
+```text
+https://github.com/natsumeaoii/surl/issues
+```
+
+Do not post private personal information, harassment details that identify a target unnecessarily, or other sensitive evidence in public issues.
