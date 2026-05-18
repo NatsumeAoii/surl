@@ -17,7 +17,13 @@ describe('callScript', () => {
         expect(data).toEqual({ ok: true });
         const [requestUrl, requestInit] = fetchImpl.mock.calls[0] as unknown as [
             string,
-            RequestInit,
+            {
+                method?: string;
+                redirect?: string;
+                cache?: string;
+                body?: unknown;
+                headers?: unknown;
+            },
         ];
         const url = new URL(String(requestUrl));
 
