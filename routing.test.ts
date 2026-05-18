@@ -67,6 +67,28 @@ describe('GitHub Pages routing configuration', () => {
         expect(entry).toContain("key.startsWith('ntsm-url-')");
     });
 
+    it('validates the deploy artifact and deployed Pages output in CI', () => {
+        const workflow = readText('./.github/workflows/deploy.yml');
+        const packageJson = JSON.parse(readText('./package.json')) as {
+            scripts?: Record<string, string>;
+        };
+
+        expect(packageJson.scripts).toMatchObject({
+            'validate:deploy': 'node scripts/validate-deploy-artifact.mjs',
+            'verify:pages': 'node scripts/verify-deployed-pages.mjs',
+        });
+        expect(workflow).toContain('run: npm run validate:deploy');
+        expect(workflow).toContain(
+            'run: npm run verify:pages -- "${{ steps.deployment.outputs.page_url }}"',
+        );
+        expect(workflow.indexOf('run: npm run build')).toBeLessThan(
+            workflow.indexOf('run: npm run validate:deploy'),
+        );
+        expect(workflow.indexOf('uses: actions/deploy-pages')).toBeLessThan(
+            workflow.indexOf('run: npm run verify:pages'),
+        );
+    });
+
     it('publishes SEO metadata for the current production URL only', () => {
         const files = [
             readText('./index.html'),

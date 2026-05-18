@@ -7,6 +7,7 @@ All notable changes to SURL / S.url are documented here.
 ### Added
 
 - Added package metadata for description, homepage, repository, issues, license, and supported Node runtime.
+- Added deploy artifact validation and post-deploy GitHub Pages smoke checks to catch raw source deployments that request `/src/main.tsx`.
 - Added contributor-focused README sections for quick start, configuration, architecture, troubleshooting, and Q&A.
 - Added `SECURITY.md` with supported-version guidance, disclosure expectations, and deployer security notes.
 - Added `LICENSE.md` as a Markdown copy of the existing MIT license text.

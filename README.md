@@ -46,12 +46,12 @@ Copy `.env.example` to `.env` and set values for local development.
 <details>
 <summary><strong>Environment variables</strong></summary>
 
-| Variable | Required | Used by | Purpose |
-| --- | --- | --- | --- |
-| `VITE_SCRIPT_URL` | Yes for real API calls | React app | Google Apps Script web app URL. |
-| `VITE_APP_NAME` | No | React app | Brand prefix shown before `.url`. |
-| `VITE_BASE_DISPLAY` | No | React app | Display-only short-link prefix in the UI. |
-| `VITE_TAGLINE` | No | React app | Brand subtitle in the header. |
+| Variable            | Required               | Used by   | Purpose                                   |
+| ------------------- | ---------------------- | --------- | ----------------------------------------- |
+| `VITE_SCRIPT_URL`   | Yes for real API calls | React app | Google Apps Script web app URL.           |
+| `VITE_APP_NAME`     | No                     | React app | Brand prefix shown before `.url`.         |
+| `VITE_BASE_DISPLAY` | No                     | React app | Display-only short-link prefix in the UI. |
+| `VITE_TAGLINE`      | No                     | React app | Brand subtitle in the header.             |
 
 </details>
 
@@ -69,8 +69,8 @@ Important: `public/404.html` is served directly by GitHub Pages and does not rea
 5. If the script is not bound to the sheet, set `SPREADSHEET_ID` in `google/combined.gs`.
 6. Confirm `BASE_URL` in `google/combined.gs` points to `https://natsumeaoii.github.io/surl/`.
 7. Deploy as a Web App:
-   - Execute as: `Me`
-   - Who has access: `Anyone`
+    - Execute as: `Me`
+    - Who has access: `Anyone`
 8. Copy the deployment URL into `VITE_SCRIPT_URL`.
 
 The combined script writes to this sheet shape:
@@ -78,20 +78,20 @@ The combined script writes to this sheet shape:
 <details>
 <summary><strong>Database columns</strong></summary>
 
-| Column | Meaning |
-| --- | --- |
-| Timestamp | ISO timestamp for creation. |
-| Alias | Short-link alias. |
-| URL | Destination URL. |
-| UID | Anonymous user ID when consent is granted. |
-| Device | Coarse device category. |
-| Browser | Browser family/version label. |
-| OS | Operating system label. |
-| Language | Browser language. |
-| Referrer | Referrer hostname when consent is granted. |
-| Screen | Screen dimensions. |
-| Expiry | Optional UTC expiry timestamp. |
-| Password Hash | Optional salted password hash. |
+| Column        | Meaning                                    |
+| ------------- | ------------------------------------------ |
+| Timestamp     | ISO timestamp for creation.                |
+| Alias         | Short-link alias.                          |
+| URL           | Destination URL.                           |
+| UID           | Anonymous user ID when consent is granted. |
+| Device        | Coarse device category.                    |
+| Browser       | Browser family/version label.              |
+| OS            | Operating system label.                    |
+| Language      | Browser language.                          |
+| Referrer      | Referrer hostname when consent is granted. |
+| Screen        | Screen dimensions.                         |
+| Expiry        | Optional UTC expiry timestamp.             |
+| Password Hash | Optional salted password hash.             |
 
 </details>
 
@@ -194,6 +194,13 @@ npm run build
 <summary><strong>GitHub Pages assets 404 after a path or repository rename.</strong></summary>
 
 Update all route-sensitive files together: `vite.config.ts`, `public/404.html`, `public/manifest.json`, `public/sw.js`, `public/robots.txt`, `public/sitemap.xml`, `index.html`, and Apps Script `BASE_URL` values. The routing tests cover these paths.
+
+</details>
+
+<details>
+<summary><strong>The deployed page is blank and the console requests `/src/main.tsx`.</strong></summary>
+
+That means GitHub Pages is serving raw repository files instead of the Vite `dist` artifact. In the repository settings, configure Pages to use GitHub Actions as the source, then rerun `.github/workflows/deploy.yml`. The workflow now validates `dist` before upload and smoke-checks the deployed page after deployment.
 
 </details>
 
