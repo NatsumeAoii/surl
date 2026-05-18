@@ -288,12 +288,16 @@
             function api(action, params) {
                 var controller = new AbortController();
                 var timeout = setTimeout(function () { controller.abort(); }, REQUEST_TIMEOUT_MS);
+                var url = new URL(SCRIPT_URL);
                 var body = Object.assign({ action: action }, params || {});
+                Object.keys(body).forEach(function (key) {
+                    if (body[key] !== undefined && body[key] !== null) {
+                        url.searchParams.set(key, String(body[key]));
+                    }
+                });
 
-                return fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-                    body: JSON.stringify(body),
+                return fetch(url.toString(), {
+                    method: 'GET',
                     cache: 'no-store',
                     redirect: 'follow',
                     signal: controller.signal

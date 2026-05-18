@@ -41,6 +41,8 @@ describe('GitHub Pages routing configuration', () => {
         const serviceWorker = readText('./public/sw.js');
 
         expect(fallback).toContain(`var BASE_PATH = '${BASE_PATH}';`);
+        expect(fallback).toContain("method: 'GET'");
+        expect(fallback).not.toContain("method: 'POST'");
         expect(fallback).not.toContain(OLD_BASE_PATH);
         expect(manifest).toMatchObject({
             id: BASE_PATH,

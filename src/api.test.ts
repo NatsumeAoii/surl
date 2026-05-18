@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ApiError, callScript } from './api.ts';
 
 describe('callScript', () => {
-    it('posts action parameters as a simple text request', async () => {
+    it('sends action parameters as a CORS-compatible GET request', async () => {
         const fetchImpl = vi.fn(
             async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
         );
@@ -15,14 +15,25 @@ describe('callScript', () => {
         );
 
         expect(data).toEqual({ ok: true });
-        expect(fetchImpl).toHaveBeenCalledWith(
-            'https://script.example/exec',
-            expect.objectContaining({
-                method: 'POST',
-                body: JSON.stringify({ action: 'write', name: 'abc', url: 'https://example.com' }),
-                headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-            }),
-        );
+        const [requestUrl, requestInit] = fetchImpl.mock.calls[0] as unknown as [
+            string,
+            RequestInit,
+        ];
+        const url = new URL(String(requestUrl));
+
+        expect(url.origin + url.pathname).toBe('https://script.example/exec');
+        expect(Object.fromEntries(url.searchParams.entries())).toEqual({
+            action: 'write',
+            name: 'abc',
+            url: 'https://example.com',
+        });
+        expect(requestInit).toMatchObject({
+            method: 'GET',
+            redirect: 'follow',
+            cache: 'no-store',
+        });
+        expect(requestInit).not.toHaveProperty('body');
+        expect(requestInit).not.toHaveProperty('headers');
     });
 
     it('maps HTTP and invalid JSON responses to stable user-safe errors', async () => {
@@ -56,6 +67,20 @@ describe('callScript', () => {
         ).rejects.toMatchObject({
             code: 'REQUEST_TIMEOUT',
             userMessage: 'The shortener service took too long to respond.',
+        });
+    });
+
+    it('rejects requests that are too large for query-string transport', async () => {
+        await expect(
+            callScript(
+                'https://script.example/exec',
+                'bulk',
+                { urls: 'https://example.com/'.repeat(700) },
+                { fetchImpl: vi.fn() },
+            ),
+        ).rejects.toMatchObject({
+            code: 'REQUEST_TOO_LARGE',
+            userMessage: 'Request is too large. Try fewer or shorter URLs.',
         });
     });
 });

@@ -172,6 +172,13 @@ Check that `.env` contains a valid `VITE_SCRIPT_URL`, the Apps Script web app is
 </details>
 
 <details>
+<summary><strong>The browser reports a CORS error for the Apps Script URL.</strong></summary>
+
+The frontend uses Apps Script's GET response path because it returns JSON with CORS headers on GitHub Pages. If CORS errors continue after redeploying the site, confirm the deployment URL points to `google/combined.gs`, deploy a new Apps Script version, and keep Web App access set to `Anyone`.
+
+</details>
+
+<details>
 <summary><strong>Local dev server does not start on port 5174.</strong></summary>
 
 `vite.config.ts` sets `strictPort: true`, so Vite will fail instead of choosing another port. Stop the process using port `5174`, or intentionally change the dev server config and update tests if that behavior is desired.

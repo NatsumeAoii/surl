@@ -11,6 +11,7 @@ interface CallScriptOptions {
 const DEFAULT_TIMEOUT_MS = 10_000;
 const RETRY_BASE_DELAY_MS = 250;
 const RETRY_MAX_DELAY_MS = 2_000;
+const MAX_SCRIPT_REQUEST_URL_LENGTH = 12_000;
 
 export class ApiError extends Error {
     readonly code: string;
@@ -44,7 +45,7 @@ export async function callScript<T>(
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
-            return await postOnce<T>(scriptUrl, action, params, options);
+            return await requestOnce<T>(scriptUrl, action, params, options);
         } catch (error) {
             const apiError = normalizeError(error);
             lastError = apiError;
@@ -60,13 +61,14 @@ export async function callScript<T>(
     throw lastError ?? new ApiError('NETWORK_ERROR', 'Network error. Please try again.');
 }
 
-async function postOnce<T>(
+async function requestOnce<T>(
     scriptUrl: string,
     action: ScriptAction,
     params: ScriptParams,
     options: CallScriptOptions,
 ): Promise<T> {
     const fetchImpl = options.fetchImpl ?? fetch;
+    const requestUrl = buildScriptRequestUrl(scriptUrl, action, params);
     const controller = new AbortController();
     const timeoutId = windowSetTimeout(
         () => controller.abort(),
@@ -74,10 +76,8 @@ async function postOnce<T>(
     );
 
     try {
-        const response = await fetchImpl(scriptUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-            body: JSON.stringify({ action, ...serializeParams(params) }),
+        const response = await fetchImpl(requestUrl, {
+            method: 'GET',
             signal: controller.signal,
             redirect: 'follow',
             cache: 'no-store',
@@ -106,6 +106,26 @@ async function postOnce<T>(
     } finally {
         clearTimeout(timeoutId);
     }
+}
+
+function buildScriptRequestUrl(
+    scriptUrl: string,
+    action: ScriptAction,
+    params: ScriptParams,
+): string {
+    const url = new URL(scriptUrl);
+    url.searchParams.set('action', action);
+
+    for (const [key, value] of Object.entries(serializeParams(params))) {
+        url.searchParams.set(key, value);
+    }
+
+    const requestUrl = url.toString();
+    if (requestUrl.length > MAX_SCRIPT_REQUEST_URL_LENGTH) {
+        throw new ApiError('REQUEST_TOO_LARGE', 'Request is too large. Try fewer or shorter URLs.');
+    }
+
+    return requestUrl;
 }
 
 function serializeParams(params: ScriptParams): Record<string, string> {

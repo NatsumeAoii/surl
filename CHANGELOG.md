@@ -23,6 +23,7 @@ All notable changes to SURL / S.url are documented here.
 
 ### Fixed
 
+- Switched browser-to-Apps-Script calls to the CORS-compatible GET transport used by Apps Script web apps.
 - Aligned frontend password length with the backend password limit.
 - Tightened Apps Script URL authority and port validation.
 
