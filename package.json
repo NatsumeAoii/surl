@@ -24,6 +24,7 @@
         "lint": "eslint src --report-unused-disable-directives",
         "format": "prettier --write src",
         "format:check": "prettier --check src",
+        "ensure:pages-source": "node scripts/ensure-pages-workflow-source.mjs",
         "validate:deploy": "node scripts/validate-deploy-artifact.mjs",
         "verify:pages": "node scripts/verify-deployed-pages.mjs"
     },

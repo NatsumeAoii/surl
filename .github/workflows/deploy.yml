@@ -7,6 +7,7 @@ on:
 
 permissions:
     contents: read
+    pages: write
 
 concurrency:
     group: pages
@@ -49,6 +50,11 @@ jobs:
 
             - name: Configure GitHub Pages
               uses: actions/configure-pages@v6
+
+            - name: Ensure GitHub Pages uses Actions
+              run: npm run ensure:pages-source
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
 
             - name: Upload GitHub Pages artifact
               uses: actions/upload-pages-artifact@v5
