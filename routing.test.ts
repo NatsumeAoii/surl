@@ -111,12 +111,12 @@ describe('GitHub Pages routing configuration', () => {
         };
 
         expect(packageJson.scripts).toMatchObject({
-            'ensure:pages-source': 'node scripts/ensure-pages-workflow-source.mjs',
             'validate:deploy': 'node scripts/validate-deploy-artifact.mjs',
             'verify:pages': 'node scripts/verify-deployed-pages.mjs',
         });
+        expect(packageJson.scripts).not.toHaveProperty('ensure:pages-source');
         expect(workflow).toContain('run: npm run validate:deploy');
-        expect(workflow).toContain('run: npm run ensure:pages-source');
+        expect(workflow).not.toContain('run: npm run ensure:pages-source');
         expect(workflow).toContain(
             'run: npm run verify:pages -- "${{ steps.deployment.outputs.page_url }}"',
         );
@@ -124,9 +124,6 @@ describe('GitHub Pages routing configuration', () => {
             workflow.indexOf('run: npm run validate:deploy'),
         );
         expect(workflow.indexOf('uses: actions/configure-pages')).toBeLessThan(
-            workflow.indexOf('run: npm run ensure:pages-source'),
-        );
-        expect(workflow.indexOf('run: npm run ensure:pages-source')).toBeLessThan(
             workflow.indexOf('uses: actions/upload-pages-artifact'),
         );
         expect(workflow.indexOf('uses: actions/deploy-pages')).toBeLessThan(

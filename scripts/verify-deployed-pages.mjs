@@ -1,6 +1,8 @@
 const basePath = '/surl/';
 const maxAttempts = 6;
 const requestTimeoutMs = 10_000;
+const rawSourceMessage =
+    'Deployed page is serving raw Vite source HTML. Set GitHub repository Settings > Pages > Build and deployment > Source to GitHub Actions, then rerun the Deploy to GitHub Pages workflow.';
 
 const deployUrl = process.argv[2];
 
@@ -86,9 +88,7 @@ async function main() {
     const indexHtml = await getText(indexUrl);
 
     if (indexHtml.includes('/src/main.tsx') || indexHtml.includes('src="/src/')) {
-        throw new Error(
-            'Deployed page is serving raw Vite source HTML. Configure GitHub Pages to use GitHub Actions, not branch-root publishing.',
-        );
+        throw new Error(rawSourceMessage);
     }
 
     const scriptMatch = indexHtml.match(/<script\b[^>]*\bsrc="([^"]+\.js)"[^>]*>/);
