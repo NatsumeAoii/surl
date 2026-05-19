@@ -96,6 +96,8 @@ describe('GitHub Pages routing configuration', () => {
         const index = readText('./index.html');
         const entry = readText('./src/main.tsx');
 
+        expect(index).toContain('id="boot-fallback"');
+        expect(index).toContain('window.__surlSourceLoadFailed');
         expect(index).toContain('src="/src/main.tsx?sw-clear=1"');
         expect(entry).toContain('import.meta.env.PROD');
         expect(entry).toContain('clearDevelopmentServiceWorker');
