@@ -8,7 +8,7 @@
 npm install
 ```
 
-2. Copy `.env.example` to `.env` and set `VITE_SCRIPT_URL`.
+2. Copy `.env.example` to `.env`. Set `VITE_SCRIPT_URL` only when you need a local React-only override for the Apps Script deployment URL.
 3. Start the dev server:
 
 ```bash
@@ -50,7 +50,7 @@ https://natsumeaoii.github.io/surl/
 If the repository path changes, update route-sensitive files together and run:
 
 ```bash
-npm test -- routing.test.ts
+npm test -- tests/config/routing.test.ts
 npm run build
 ```
 
@@ -58,6 +58,6 @@ npm run build
 
 - Do not commit secrets, deployment URLs for private scripts, spreadsheet credentials, or personal data.
 - Validate and sanitize data at API boundaries.
-- Keep target URL validation aligned between `src/url.ts` and `google/combined.gs`.
+- Keep target URL validation aligned between `src/lib/url/validation.ts` and `apps-script/combined.gs`.
 - Preserve explicit request timeouts and bounded retries for external calls.
 - Report suspected vulnerabilities privately to the maintainer instead of opening a public issue.

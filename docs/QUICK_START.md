@@ -6,7 +6,7 @@ Fastest path from a clean checkout to a local S.url development server.
 
 - Node.js 20 or newer.
 - npm.
-- A Google Sheet and deployed `google/combined.gs` web app for real shortening.
+- A Google Sheet and deployed `apps-script/combined.gs` web app for real shortening.
 
 ## Run Locally
 
@@ -34,13 +34,11 @@ The local dev server uses `strictPort: true`, so port `5174` must be free.
 
 ## Configure API Calls
 
-Set `VITE_SCRIPT_URL` in `.env` to the deployed Apps Script URL for `google/combined.gs`.
+Set `scriptUrl` in `public/static-config.js` to the deployed Apps Script URL for `apps-script/combined.gs`.
 
-Static GitHub Pages fallback pages do not read `.env`. If the Apps Script URL changes, also update:
+Static GitHub Pages fallback pages do not read `.env`. The React app loads the same `public/static-config.js` default at runtime. If you need a local React-only override, set `VITE_SCRIPT_URL` in `.env`.
 
-- `SCRIPT_URL` in `public/404.html`
-- `API_URL` in `public/report.html`
-- fallback `scriptUrl` in `src/config.ts`, unless CI injects `VITE_SCRIPT_URL`
+If the Apps Script URL changes, update `public/static-config.js` first.
 
 ## Verify Before Hand-Off
 
@@ -58,11 +56,11 @@ npm run validate:deploy
 1. Create a Google Sheet.
 2. Add a tab named `database`.
 3. Open `Extensions > Apps Script`.
-4. Paste `google/combined.gs`.
-5. If the script is not bound to the sheet, set `SPREADSHEET_ID` in `google/combined.gs`.
+4. Paste `apps-script/combined.gs`.
+5. If the script is not bound to the sheet, set `SPREADSHEET_ID` in `apps-script/combined.gs`.
 6. Confirm `BASE_URL` points to `https://natsumeaoii.github.io/surl/`.
 7. Deploy as a web app with `Execute as: Me` and `Who has access: Anyone`.
-8. Copy the deployment URL into `.env` as `VITE_SCRIPT_URL`.
+8. Copy the deployment URL into `public/static-config.js` as `scriptUrl`.
 
 ## Local Short-Link Testing
 

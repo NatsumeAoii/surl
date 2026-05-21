@@ -1,894 +1,1000 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>S.url - Redirect</title>
-    <meta name="description" content="Preview and resolve S.url short links." />
-    <meta name="robots" content="noindex,follow" />
-    <link rel="icon" type="image/svg+xml" href="/surl/favicon.svg" />
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="default-src 'self'; connect-src https://script.google.com https://script.googleusercontent.com http://localhost:* http://127.0.0.1:*; frame-src http: https:; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"
-    />
-    <style>
-      :root {
-        color-scheme: dark;
-        --bg: #101318;
-        --surface: #171b22;
-        --surface-soft: #1e242d;
-        --surface-strong: #252d37;
-        --text: #eef2f4;
-        --text-muted: #aab3bd;
-        --border: #303945;
-        --border-strong: #465261;
-        --primary: #69b8cc;
-        --primary-hover: #8ccbdd;
-        --primary-soft: rgba(105, 184, 204, 0.14);
-        --accent: #d4a552;
-        --accent-soft: rgba(212, 165, 82, 0.15);
-        --danger: #ef8b84;
-        --danger-soft: rgba(239, 139, 132, 0.13);
-        --shadow-panel: 0 18px 50px rgba(0, 0, 0, 0.28);
-        --radius: 8px;
-      }
-
-      *,
-      *::before,
-      *::after {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-      }
-
-      body {
-        min-height: 100vh;
-        color: var(--text);
-        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: linear-gradient(180deg, var(--surface-strong), transparent 340px), var(--bg);
-      }
-
-      button,
-      input {
-        font: inherit;
-      }
-
-      button {
-        color: inherit;
-      }
-
-      .page {
-        width: min(100% - 32px, 860px);
-        min-height: 100vh;
-        margin: 0 auto;
-        display: grid;
-        place-items: center;
-        padding: 24px 0;
-      }
-
-      .panel {
-        width: min(100%, 520px);
-        padding: 22px;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        box-shadow: var(--shadow-panel);
-      }
-
-      .panel--preview {
-        width: 100%;
-      }
-
-      .brand {
-        display: inline-flex;
-        align-items: center;
-        gap: 10px;
-        margin-bottom: 18px;
-        color: var(--text);
-        font-size: 14px;
-        font-weight: 850;
-        text-decoration: none;
-      }
-
-      .brand-mark {
-        width: 36px;
-        height: 36px;
-        display: grid;
-        place-items: center;
-        color: var(--primary);
-        background: var(--primary-soft);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-      }
-
-      .eyebrow {
-        display: inline-flex;
-        min-height: 28px;
-        align-items: center;
-        gap: 7px;
-        padding: 4px 10px;
-        margin-bottom: 10px;
-        color: var(--primary);
-        font-size: 12px;
-        font-weight: 850;
-        background: var(--primary-soft);
-        border-radius: 999px;
-      }
-
-      h1,
-      h2 {
-        margin: 0;
-        font-size: clamp(22px, 5vw, 28px);
-        line-height: 1.2;
-        letter-spacing: 0;
-      }
-
-      p {
-        margin-top: 7px;
-        color: var(--text-muted);
-        font-size: 14px;
-        line-height: 1.55;
-      }
-
-      .spinner {
-        width: 18px;
-        height: 18px;
-        display: inline-block;
-        border: 2px solid rgba(105, 184, 204, 0.28);
-        border-top-color: var(--primary);
-        border-radius: 50%;
-        animation: spin 0.7s linear infinite;
-      }
-
-      .loading-line {
-        height: 6px;
-        margin-top: 18px;
-        overflow: hidden;
-        background: var(--surface-soft);
-        border-radius: 999px;
-      }
-
-      .loading-line::before {
-        content: "";
-        display: block;
-        width: 42%;
-        height: 100%;
-        background: linear-gradient(90deg, transparent, var(--primary), transparent);
-        animation: loading-line 1.1s ease-in-out infinite;
-      }
-
-      .destination-card {
-        display: grid;
-        gap: 8px;
-        margin: 18px 0 14px;
-        padding: 14px;
-        background: var(--surface-soft);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-      }
-
-      .label {
-        color: var(--text-muted);
-        font-size: 12px;
-        font-weight: 850;
-        text-transform: uppercase;
-      }
-
-      .domain {
-        color: var(--primary);
-        font-size: 18px;
-        font-weight: 850;
-        overflow-wrap: anywhere;
-      }
-
-      .meta {
-        min-height: 18px;
-        color: var(--text-muted);
-        font-size: 12px;
-      }
-
-      .browser-preview {
-        position: relative;
-        margin-top: 14px;
-        overflow: hidden;
-        background: #0f1217;
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-      }
-
-      .browser-preview__bar {
-        display: grid;
-        grid-template-columns: auto minmax(0, 1fr);
-        gap: 10px;
-        align-items: center;
-        min-height: 42px;
-        padding: 0 12px;
-        background: var(--surface-soft);
-        border-bottom: 1px solid var(--border);
-      }
-
-      .browser-preview__dots {
-        display: flex;
-        gap: 5px;
-      }
-
-      .browser-preview__dots span {
-        width: 8px;
-        height: 8px;
-        background: var(--border-strong);
-        border-radius: 50%;
-      }
-
-      .browser-preview__address {
-        overflow: hidden;
-        color: var(--text-muted);
-        font-size: 12px;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      .browser-preview__frame {
-        display: block;
-        width: 100%;
-        height: clamp(240px, 45vh, 420px);
-        background: #ffffff;
-        border: 0;
-      }
-
-      .browser-preview--loading .browser-preview__frame {
-        opacity: 0.2;
-      }
-
-      .browser-preview__loading {
-        position: absolute;
-        inset: 42px 0 0;
-        display: none;
-        align-items: center;
-        justify-content: center;
-        gap: 12px;
-        padding: 18px;
-        color: var(--text);
-        text-align: left;
-        background: rgba(16, 19, 24, 0.92);
-      }
-
-      .browser-preview--loading .browser-preview__loading {
-        display: flex;
-      }
-
-      .browser-preview__loading strong,
-      .browser-preview__loading span span {
-        display: block;
-      }
-
-      .browser-preview__loading span span {
-        margin-top: 3px;
-        color: var(--text-muted);
-        font-size: 13px;
-        line-height: 1.45;
-      }
-
-      .browser-preview__notice {
-        padding: 10px 12px;
-        color: var(--text-muted);
-        font-size: 12px;
-        line-height: 1.45;
-        border-top: 1px solid var(--border);
-      }
-
-      .actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-top: 16px;
-      }
-
-      .button {
-        min-height: 44px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        padding: 0 16px;
-        color: var(--text);
-        font-size: 14px;
-        font-weight: 850;
-        text-decoration: none;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        cursor: pointer;
-      }
-
-      .button-primary {
-        color: #ffffff;
-        background: var(--primary);
-        border-color: var(--primary);
-      }
-
-      .button-primary:hover {
-        background: var(--primary-hover);
-      }
-
-      .button-danger {
-        color: var(--danger);
-        background: var(--danger-soft);
-        border-color: transparent;
-      }
-
-      .button:disabled,
-      .button[aria-disabled='true'] {
-        cursor: not-allowed;
-        opacity: 0.62;
-      }
-
-      .button:focus-visible,
-      input:focus-visible {
-        outline: 2px solid var(--primary);
-        outline-offset: 2px;
-      }
-
-      .input {
-        width: 100%;
-        min-height: 48px;
-        margin-top: 16px;
-        padding: 0 14px;
-        color: var(--text);
-        background: var(--surface-soft);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        outline: none;
-      }
-
-      .error-text {
-        min-height: 20px;
-        margin-top: 8px;
-        color: var(--danger);
-        font-size: 13px;
-        font-weight: 750;
-      }
-
-      .hidden {
-        display: none !important;
-      }
-
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
-        }
-      }
-
-      @keyframes loading-line {
-        0% {
-          transform: translateX(-110%);
-        }
-        100% {
-          transform: translateX(260%);
-        }
-      }
-
-      @media (max-width: 640px) {
-        .page {
-          width: min(100% - 24px, 860px);
-          place-items: stretch;
-        }
-
-        .panel {
-          padding: 18px;
-        }
-
-        .actions {
-          flex-direction: column;
-        }
-
-        .button {
-          width: 100%;
-        }
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        *,
-        *::before,
-        *::after {
-          animation-duration: 0.01ms !important;
-          animation-iteration-count: 1 !important;
-          transition-duration: 0.01ms !important;
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <main class="page" aria-live="polite">
-      <section id="s-loading" class="panel">
-        <a class="brand" href="/surl/" aria-label="Back to S.url">
-          <span class="brand-mark" aria-hidden="true">S</span>
-          <span>S.url</span>
-        </a>
-        <div class="eyebrow"><span class="spinner" aria-hidden="true"></span> Resolving link</div>
-        <h1>Checking this short link</h1>
-        <p>Please wait while S.url finds the destination.</p>
-        <div class="loading-line" aria-hidden="true"></div>
-      </section>
-
-      <section id="s-preview" class="panel panel--preview hidden">
-        <a class="brand" href="/surl/" aria-label="Back to S.url">
-          <span class="brand-mark" aria-hidden="true">S</span>
-          <span>S.url</span>
-        </a>
-        <div class="eyebrow">Preview</div>
-        <h1>Review this destination</h1>
-        <p>Open this link only if the destination is expected and trusted.</p>
-
-        <div class="destination-card">
-          <div class="label">Destination URL</div>
-          <div class="domain" id="preview-domain"></div>
-          <div class="meta" id="preview-meta"></div>
-        </div>
-
-        <div class="browser-preview" id="browser-preview" hidden>
-          <div class="browser-preview__bar" aria-hidden="true">
-            <div class="browser-preview__dots"><span></span><span></span><span></span></div>
-            <div class="browser-preview__address" id="browser-preview-address"></div>
-          </div>
-          <iframe
-            class="browser-preview__frame"
-            id="preview-frame"
-            title="Sandboxed destination preview"
-            sandbox="allow-scripts allow-presentation"
-            referrerpolicy="no-referrer"
-            loading="lazy"
-            credentialless
-            allow="fullscreen; encrypted-media; picture-in-picture; web-share"
-            allowfullscreen
-          ></iframe>
-          <div class="browser-preview__loading" id="browser-preview-loading" role="status" aria-live="polite">
-            <span class="spinner" aria-hidden="true"></span>
-            <span>
-              <strong id="browser-preview-loading-title">Loading secure destination preview...</strong>
-              <span id="browser-preview-loading-text">The preview is isolated before the site appears here.</span>
-            </span>
-          </div>
-          <div class="browser-preview__notice">
-            The preview runs in an isolated sandbox. Some destinations block embedded previews, but the open button still uses the original URL.
-          </div>
-        </div>
-
-        <div class="actions">
-          <a
-            class="button button-primary"
-            id="btn-proceed"
-            href="#"
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Continue to the destination URL"
-          >
-            Open destination
-          </a>
-          <button class="button" id="btn-cancel-preview" type="button" title="Return to S.url">Cancel</button>
-          <button class="button button-danger" id="btn-report-link" type="button" title="Open abuse report form">
-            Report this link
-          </button>
-        </div>
-      </section>
-
-      <section id="s-password" class="panel hidden">
-        <a class="brand" href="/surl/" aria-label="Back to S.url">
-          <span class="brand-mark" aria-hidden="true">S</span>
-          <span>S.url</span>
-        </a>
-        <div class="eyebrow">Protected</div>
-        <h1>Password required</h1>
-        <p>This short link is protected. Enter the password to continue.</p>
-        <input
-          class="input"
-          type="password"
-          id="pwd-input"
-          placeholder="Enter password"
-          autocomplete="current-password"
-          title="Enter the password for this protected link"
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>S.url - Redirect</title>
+        <meta name="description" content="Preview and resolve S.url short links." />
+        <meta name="robots" content="noindex,follow" />
+        <link rel="icon" type="image/svg+xml" href="/surl/favicon.svg" />
+        <meta
+            http-equiv="Content-Security-Policy"
+            content="default-src 'self'; connect-src https://script.google.com https://script.googleusercontent.com http://localhost:* http://127.0.0.1:*; frame-src http: https:; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'"
         />
-        <div class="error-text hidden" id="pwd-error"></div>
-        <div class="actions">
-          <button class="button button-primary" id="btn-unlock" type="button" title="Unlock protected link">Unlock</button>
-          <button class="button" id="btn-cancel-password" type="button" title="Return to S.url">Cancel</button>
-        </div>
-      </section>
-
-      <section id="s-error" class="panel hidden">
-        <a class="brand" href="/surl/" aria-label="Back to S.url">
-          <span class="brand-mark" aria-hidden="true">S</span>
-          <span>S.url</span>
-        </a>
-        <div class="eyebrow">Notice</div>
-        <h1 id="err-title">Link not found</h1>
-        <p id="err-msg">This short URL does not exist or has been removed.</p>
-        <div class="actions">
-          <button class="button button-primary" id="btn-home" type="button" title="Return to S.url home">Go to S.url</button>
-        </div>
-      </section>
-    </main>
-
-    <script>
-      (function () {
-        'use strict';
-
-        var BASE_PATH = '/surl/';
-        var SCRIPT_URL =
-          'https://script.google.com/macros/s/AKfycbzL4HuT8WGLg5hJB-OCZozdNl7npwdP6z2cCkNFQ6A-1t03PcHntLH53tOFYpfbJ8Tr/exec';
-        var REQUEST_TIMEOUT_MS = 30000;
-        var states = ['s-loading', 's-preview', 's-password', 's-error'];
-        var slug = location.pathname;
-        var currentPreviewDomain = '';
-        var currentPreviewExpiry = '';
-        var currentDestinationUrl = '';
-
-        if (slug.indexOf(BASE_PATH) === 0) slug = slug.substring(BASE_PATH.length);
-        slug = slug.replace(/^\/+|\/+$/g, '');
-        if (!slug) {
-          location.replace(BASE_PATH);
-          return;
-        }
-
-        var $ = function (id) {
-          return document.getElementById(id);
-        };
-
-        function showState(id) {
-          states.forEach(function (state) {
-            $(state).classList.toggle('hidden', state !== id);
-          });
-        }
-
-        function api(action, params) {
-          var controller = new AbortController();
-          var timeout = setTimeout(function () {
-            controller.abort();
-          }, REQUEST_TIMEOUT_MS);
-          var url = new URL(SCRIPT_URL);
-          var body = Object.assign({ action: action }, params || {});
-
-          Object.keys(body).forEach(function (key) {
-            if (body[key] !== undefined && body[key] !== null) {
-              url.searchParams.set(key, String(body[key]));
-            }
-          });
-
-          return fetch(url.toString(), {
-            method: 'GET',
-            cache: 'no-store',
-            redirect: 'follow',
-            signal: controller.signal,
-          })
-            .then(function (response) {
-              if (!response.ok) throw new Error('HTTP_' + response.status);
-              return response.json();
-            })
-            .finally(function () {
-              clearTimeout(timeout);
-            });
-        }
-
-        function isSafeHttpUrl(value) {
-          try {
-            var url = new URL(value);
-            return (url.protocol === 'http:' || url.protocol === 'https:') && !url.username && !url.password;
-          } catch (_) {
-            return false;
-          }
-        }
-
-        function fail(title, message) {
-          $('err-title').textContent = title;
-          $('err-msg').textContent = message;
-          showState('s-error');
-        }
-
-        function updateDestinationSummary(value) {
-          var meta = [];
-
-          if (value && isSafeHttpUrl(value)) {
-            $('preview-domain').textContent = value;
-            try {
-              meta.push('Host: ' + new URL(value).hostname);
-            } catch (_) {
-              if (currentPreviewDomain) meta.push('Host: ' + currentPreviewDomain);
-            }
-          } else {
-            $('preview-domain').textContent = currentPreviewDomain ? 'Loading full destination...' : slug;
-            if (currentPreviewDomain) meta.push('Host: ' + currentPreviewDomain);
-          }
-
-          if (currentPreviewExpiry) meta.push('Expires ' + new Date(currentPreviewExpiry).toLocaleString());
-          $('preview-meta').textContent = meta.join(' | ');
-        }
-
-        function setOpenDestinationHref(value) {
-          if (value && isSafeHttpUrl(value)) {
-            $('btn-proceed').href = value;
-            $('btn-proceed').removeAttribute('aria-disabled');
-            return;
-          }
-
-          $('btn-proceed').href = '#';
-          $('btn-proceed').setAttribute('aria-disabled', 'true');
-        }
-
-        function createEmbeddablePreviewUrl(value) {
-          var url;
-
-          try {
-            url = new URL(value);
-          } catch (_) {
-            return '';
-          }
-
-          if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
-
-          var hostname = url.hostname.replace(/^www\./, '').toLowerCase();
-          var videoId = '';
-          var listId = url.searchParams.get('list') || '';
-
-          if (hostname === 'youtu.be') {
-            videoId = url.pathname.split('/').filter(Boolean)[0] || '';
-          }
-
-          if (hostname === 'youtube.com' || hostname === 'music.youtube.com' || hostname === 'm.youtube.com') {
-            if (url.pathname === '/watch') videoId = url.searchParams.get('v') || '';
-            if (url.pathname.indexOf('/shorts/') === 0 || url.pathname.indexOf('/embed/') === 0) {
-              videoId = url.pathname.split('/').filter(Boolean)[1] || '';
-            }
-          }
-
-          if (/^[A-Za-z0-9_-]{6,}$/.test(videoId)) {
-            var youtubeEmbed = new URL('https://www.youtube-nocookie.com/embed/' + encodeURIComponent(videoId));
-            if (/^[A-Za-z0-9_-]+$/.test(listId)) youtubeEmbed.searchParams.set('list', listId);
-            return youtubeEmbed.toString();
-          }
-
-          if (hostname === 'vimeo.com') {
-            var vimeoId = url.pathname.split('/').filter(Boolean)[0] || '';
-            if (/^\d+$/.test(vimeoId)) return 'https://player.vimeo.com/video/' + encodeURIComponent(vimeoId);
-          }
-
-          if (hostname === 'open.spotify.com') {
-            var spotifyParts = url.pathname.split('/').filter(Boolean);
-            var spotifyType = spotifyParts[0] || '';
-            var spotifyId = spotifyParts[1] || '';
-            if (/^(album|artist|episode|playlist|show|track)$/.test(spotifyType) && /^[A-Za-z0-9]+$/.test(spotifyId)) {
-              return 'https://open.spotify.com/embed/' + spotifyType + '/' + spotifyId;
-            }
-          }
-
-          return url.toString();
-        }
-
-        function showDestinationPreviewLoading() {
-          var preview = $('browser-preview');
-          var frame = $('preview-frame');
-
-          preview.hidden = false;
-          preview.classList.add('browser-preview--loading');
-          frame.removeAttribute('src');
-          frame.onload = null;
-          $('browser-preview-address').textContent = 'Preparing sandboxed preview...';
-          $('browser-preview-loading-title').textContent = 'Loading secure destination preview...';
-          $('browser-preview-loading-text').textContent = 'The preview is isolated before the site appears here.';
-        }
-
-        function setDestinationPreview(value) {
-          var preview = $('browser-preview');
-          var frame = $('preview-frame');
-          var address = $('browser-preview-address');
-
-          currentDestinationUrl = '';
-          setOpenDestinationHref('');
-          preview.hidden = true;
-          preview.classList.remove('browser-preview--loading');
-          frame.removeAttribute('src');
-          frame.onload = null;
-          address.textContent = '';
-
-          if (!value || !isSafeHttpUrl(value)) return;
-
-          currentDestinationUrl = value;
-          setOpenDestinationHref(value);
-          updateDestinationSummary(value);
-
-          var previewUrl = createEmbeddablePreviewUrl(value);
-          if (!previewUrl) return;
-
-          preview.hidden = false;
-          preview.classList.add('browser-preview--loading');
-          var fallbackTimer = window.setTimeout(function () {
-            if (frame.getAttribute('src') === previewUrl && preview.classList.contains('browser-preview--loading')) {
-              $('browser-preview-loading-title').textContent = 'Preview is still loading';
-              $('browser-preview-loading-text').textContent =
-                'This site may block embedded previews. You can still open the original destination.';
-            }
-          }, 4500);
-
-          frame.onload = function () {
-            window.clearTimeout(fallbackTimer);
-            preview.classList.remove('browser-preview--loading');
-          };
-          frame.src = previewUrl;
-          address.textContent = value;
-        }
-
-        function loadDestinationPreview(value) {
-          if (value !== null) showDestinationPreviewLoading();
-
-          if (value === null) {
-            setDestinationPreview('');
-            return;
-          }
-
-          if (value) {
-            setDestinationPreview(value);
-            return;
-          }
-
-          api('read', { name: slug, password: '' })
-            .then(function (data) {
-              if (data.ok && data.url) setDestinationPreview(data.url);
-              else setDestinationPreview('');
-            })
-            .catch(function () {
-              setDestinationPreview('');
-            });
-        }
-
-        function goHome() {
-          location.href = BASE_PATH;
-        }
-
-        function openReportPage() {
-          var params = new URLSearchParams();
-          params.set('slug', slug);
-          if (currentDestinationUrl && isSafeHttpUrl(currentDestinationUrl)) {
-            params.set('url', currentDestinationUrl);
-          }
-          window.location.href = BASE_PATH + 'report.html?' + params.toString();
-        }
-
-        function setButtonBusy(button, isBusy, busyText) {
-          if (!button) return;
-          if (!button.dataset.idleText) button.dataset.idleText = button.textContent;
-          if ('disabled' in button) button.disabled = isBusy;
-          if (isBusy) {
-            button.setAttribute('aria-disabled', 'true');
-            button.setAttribute('aria-busy', 'true');
-          } else {
-            button.removeAttribute('aria-disabled');
-            button.removeAttribute('aria-busy');
-          }
-          button.textContent = isBusy ? busyText : button.dataset.idleText;
-        }
-
-        function prepareDestinationTab() {
-          var destinationWindow = window.open('', '_blank');
-
-          if (!destinationWindow) return null;
-
-          try {
-            destinationWindow.opener = null;
-            destinationWindow.document.title = 'Opening destination - S.url';
-            destinationWindow.document.body.style.cssText =
-              'margin:0;min-height:100vh;display:grid;place-items:center;background:#101318;color:#eef2f4;font:16px system-ui,sans-serif';
-            destinationWindow.document.body.textContent = 'Opening destination...';
-          } catch (_) {
-            // Some browsers restrict about:blank document access.
-          }
-
-          return destinationWindow;
-        }
-
-        function openResolvedDestination(url, destinationWindow) {
-          if (destinationWindow && !destinationWindow.closed) {
-            destinationWindow.location.replace(url);
-            return;
-          }
-
-          if (!window.open(url, '_blank', 'noopener,noreferrer')) {
-            fail('New tab blocked', 'Your browser blocked the destination tab. Allow popups for this site, then try again.');
-          }
-        }
-
-        function closeDestinationTab(destinationWindow) {
-          try {
-            if (destinationWindow && !destinationWindow.closed) destinationWindow.close();
-          } catch (_) {
-            // The tab may already be gone or no longer script-accessible.
-          }
-        }
-
-        function resolveLink(password, destinationWindow, triggerButton) {
-          setButtonBusy(triggerButton, true, 'Opening...');
-          return api('read', { name: slug, password: password || '' })
-            .then(function (data) {
-              if (data.ok && data.url && isSafeHttpUrl(data.url)) {
-                currentDestinationUrl = data.url;
-                setOpenDestinationHref(data.url);
-                openResolvedDestination(data.url, destinationWindow);
-                return;
-              }
-              closeDestinationTab(destinationWindow);
-              if (data.code === 'LINK_EXPIRED' || data.error === 'expired') {
-                fail('Link expired', 'This short URL has expired and is no longer available.');
-              } else if (data.code === 'WRONG_PASSWORD' || data.error === 'wrong_password') {
-                showState('s-password');
-                $('pwd-error').textContent = 'Incorrect password.';
-                $('pwd-error').classList.remove('hidden');
-              } else if (data.code === 'PASSWORD_REQUIRED' || data.needsPassword) {
-                showState('s-password');
-              } else {
-                fail('Link not found', 'This short URL does not exist or has been removed.');
-              }
-            })
-            .catch(function () {
-              closeDestinationTab(destinationWindow);
-              fail('Network error', 'Could not resolve this link. Please try again.');
-            })
-            .finally(function () {
-              setButtonBusy(triggerButton, false);
-            });
-        }
-
-        $('btn-proceed').onclick = function (event) {
-          if (currentDestinationUrl && isSafeHttpUrl(currentDestinationUrl)) return;
-          event.preventDefault();
-          resolveLink('', prepareDestinationTab(), $('btn-proceed'));
-        };
-        $('btn-report-link').onclick = openReportPage;
-        $('btn-cancel-preview').onclick = goHome;
-        $('btn-cancel-password').onclick = goHome;
-        $('btn-home').onclick = goHome;
-
-        function unlockProtectedLink() {
-          var password = $('pwd-input').value.trim();
-          if (!password) {
-            $('pwd-error').textContent = 'Please enter a password.';
-            $('pwd-error').classList.remove('hidden');
-            return;
-          }
-          $('pwd-error').classList.add('hidden');
-          resolveLink(password, prepareDestinationTab(), $('btn-unlock'));
-        }
-
-        $('btn-unlock').onclick = unlockProtectedLink;
-
-        $('pwd-input').onkeydown = function (event) {
-          if (event.key === 'Enter') unlockProtectedLink();
-        };
-
-        api('preview', { name: slug })
-          .then(function (data) {
-            if (!data.ok) {
-              fail('Link not found', 'This short URL does not exist or has been removed.');
-              return;
+        <style>
+            :root {
+                color-scheme: dark;
+                --bg: #101318;
+                --surface: #171b22;
+                --surface-soft: #1e242d;
+                --surface-strong: #252d37;
+                --text: #eef2f4;
+                --text-muted: #aab3bd;
+                --border: #303945;
+                --border-strong: #465261;
+                --primary: #69b8cc;
+                --primary-hover: #8ccbdd;
+                --primary-soft: rgba(105, 184, 204, 0.14);
+                --accent: #d4a552;
+                --accent-soft: rgba(212, 165, 82, 0.15);
+                --danger: #ef8b84;
+                --danger-soft: rgba(239, 139, 132, 0.13);
+                --shadow-panel: 0 18px 50px rgba(0, 0, 0, 0.28);
+                --radius: 8px;
             }
 
-            if (data.isExpired) {
-              fail('Link expired', 'This short URL has expired and is no longer available.');
-              return;
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
             }
 
-            if (data.hasPassword) {
-              showState('s-password');
-              $('pwd-input').focus();
-              return;
+            body {
+                min-height: 100vh;
+                color: var(--text);
+                font-family:
+                    Inter,
+                    ui-sans-serif,
+                    system-ui,
+                    -apple-system,
+                    BlinkMacSystemFont,
+                    'Segoe UI',
+                    sans-serif;
+                background:
+                    linear-gradient(180deg, var(--surface-strong), transparent 340px), var(--bg);
             }
 
-            currentPreviewDomain = data.domain || '';
-            currentPreviewExpiry = data.expiry || '';
-            updateDestinationSummary(data.previewUrl || '');
-            loadDestinationPreview(data.previewUrl);
-            showState('s-preview');
-          })
-          .catch(function () {
-            fail('Network error', 'Could not load this link. Please try again.');
-          });
-      })();
-    </script>
-  </body>
+            button,
+            input {
+                font: inherit;
+            }
+
+            button {
+                color: inherit;
+            }
+
+            .page {
+                width: min(100% - 32px, 860px);
+                min-height: 100vh;
+                margin: 0 auto;
+                display: grid;
+                place-items: center;
+                padding: 24px 0;
+            }
+
+            .panel {
+                width: min(100%, 520px);
+                padding: 22px;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+                box-shadow: var(--shadow-panel);
+            }
+
+            .panel--preview {
+                width: 100%;
+            }
+
+            .brand {
+                display: inline-flex;
+                align-items: center;
+                gap: 10px;
+                margin-bottom: 18px;
+                color: var(--text);
+                font-size: 14px;
+                font-weight: 850;
+                text-decoration: none;
+            }
+
+            .brand-mark {
+                width: 36px;
+                height: 36px;
+                display: grid;
+                place-items: center;
+                color: var(--primary);
+                background: var(--primary-soft);
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+            }
+
+            .eyebrow {
+                display: inline-flex;
+                min-height: 28px;
+                align-items: center;
+                gap: 7px;
+                padding: 4px 10px;
+                margin-bottom: 10px;
+                color: var(--primary);
+                font-size: 12px;
+                font-weight: 850;
+                background: var(--primary-soft);
+                border-radius: 999px;
+            }
+
+            h1,
+            h2 {
+                margin: 0;
+                font-size: clamp(22px, 5vw, 28px);
+                line-height: 1.2;
+                letter-spacing: 0;
+            }
+
+            p {
+                margin-top: 7px;
+                color: var(--text-muted);
+                font-size: 14px;
+                line-height: 1.55;
+            }
+
+            .spinner {
+                width: 18px;
+                height: 18px;
+                display: inline-block;
+                border: 2px solid rgba(105, 184, 204, 0.28);
+                border-top-color: var(--primary);
+                border-radius: 50%;
+                animation: spin 0.7s linear infinite;
+            }
+
+            .loading-line {
+                height: 6px;
+                margin-top: 18px;
+                overflow: hidden;
+                background: var(--surface-soft);
+                border-radius: 999px;
+            }
+
+            .loading-line::before {
+                content: '';
+                display: block;
+                width: 42%;
+                height: 100%;
+                background: linear-gradient(90deg, transparent, var(--primary), transparent);
+                animation: loading-line 1.1s ease-in-out infinite;
+            }
+
+            .destination-card {
+                display: grid;
+                gap: 8px;
+                margin: 18px 0 14px;
+                padding: 14px;
+                background: var(--surface-soft);
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+            }
+
+            .label {
+                color: var(--text-muted);
+                font-size: 12px;
+                font-weight: 850;
+                text-transform: uppercase;
+            }
+
+            .domain {
+                color: var(--primary);
+                font-size: 18px;
+                font-weight: 850;
+                overflow-wrap: anywhere;
+            }
+
+            .meta {
+                min-height: 18px;
+                color: var(--text-muted);
+                font-size: 12px;
+            }
+
+            .browser-preview {
+                position: relative;
+                margin-top: 14px;
+                overflow: hidden;
+                background: #0f1217;
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+            }
+
+            .browser-preview__bar {
+                display: grid;
+                grid-template-columns: auto minmax(0, 1fr);
+                gap: 10px;
+                align-items: center;
+                min-height: 42px;
+                padding: 0 12px;
+                background: var(--surface-soft);
+                border-bottom: 1px solid var(--border);
+            }
+
+            .browser-preview__dots {
+                display: flex;
+                gap: 5px;
+            }
+
+            .browser-preview__dots span {
+                width: 8px;
+                height: 8px;
+                background: var(--border-strong);
+                border-radius: 50%;
+            }
+
+            .browser-preview__address {
+                overflow: hidden;
+                color: var(--text-muted);
+                font-size: 12px;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .browser-preview__frame {
+                display: block;
+                width: 100%;
+                height: clamp(240px, 45vh, 420px);
+                background: #ffffff;
+                border: 0;
+            }
+
+            .browser-preview--loading .browser-preview__frame {
+                opacity: 0.2;
+            }
+
+            .browser-preview__loading {
+                position: absolute;
+                inset: 42px 0 0;
+                display: none;
+                align-items: center;
+                justify-content: center;
+                gap: 12px;
+                padding: 18px;
+                color: var(--text);
+                text-align: left;
+                background: rgba(16, 19, 24, 0.92);
+            }
+
+            .browser-preview--loading .browser-preview__loading {
+                display: flex;
+            }
+
+            .browser-preview__loading strong,
+            .browser-preview__loading span span {
+                display: block;
+            }
+
+            .browser-preview__loading span span {
+                margin-top: 3px;
+                color: var(--text-muted);
+                font-size: 13px;
+                line-height: 1.45;
+            }
+
+            .browser-preview__notice {
+                padding: 10px 12px;
+                color: var(--text-muted);
+                font-size: 12px;
+                line-height: 1.45;
+                border-top: 1px solid var(--border);
+            }
+
+            .actions {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                margin-top: 16px;
+            }
+
+            .button {
+                min-height: 44px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                padding: 0 16px;
+                color: var(--text);
+                font-size: 14px;
+                font-weight: 850;
+                text-decoration: none;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+                cursor: pointer;
+            }
+
+            .button-primary {
+                color: #ffffff;
+                background: var(--primary);
+                border-color: var(--primary);
+            }
+
+            .button-primary:hover {
+                background: var(--primary-hover);
+            }
+
+            .button-danger {
+                color: var(--danger);
+                background: var(--danger-soft);
+                border-color: transparent;
+            }
+
+            .button:disabled,
+            .button[aria-disabled='true'] {
+                cursor: not-allowed;
+                opacity: 0.62;
+            }
+
+            .button:focus-visible,
+            input:focus-visible {
+                outline: 2px solid var(--primary);
+                outline-offset: 2px;
+            }
+
+            .input {
+                width: 100%;
+                min-height: 48px;
+                margin-top: 16px;
+                padding: 0 14px;
+                color: var(--text);
+                background: var(--surface-soft);
+                border: 1px solid var(--border);
+                border-radius: var(--radius);
+                outline: none;
+            }
+
+            .error-text {
+                min-height: 20px;
+                margin-top: 8px;
+                color: var(--danger);
+                font-size: 13px;
+                font-weight: 750;
+            }
+
+            .hidden {
+                display: none !important;
+            }
+
+            @keyframes spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+
+            @keyframes loading-line {
+                0% {
+                    transform: translateX(-110%);
+                }
+                100% {
+                    transform: translateX(260%);
+                }
+            }
+
+            @media (max-width: 640px) {
+                .page {
+                    width: min(100% - 24px, 860px);
+                    place-items: stretch;
+                }
+
+                .panel {
+                    padding: 18px;
+                }
+
+                .actions {
+                    flex-direction: column;
+                }
+
+                .button {
+                    width: 100%;
+                }
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                *,
+                *::before,
+                *::after {
+                    animation-duration: 0.01ms !important;
+                    animation-iteration-count: 1 !important;
+                    transition-duration: 0.01ms !important;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <main class="page" aria-live="polite">
+            <section id="s-loading" class="panel">
+                <a class="brand" href="/surl/" aria-label="Back to S.url">
+                    <span class="brand-mark" aria-hidden="true">S</span>
+                    <span>S.url</span>
+                </a>
+                <div class="eyebrow">
+                    <span class="spinner" aria-hidden="true"></span> Resolving link
+                </div>
+                <h1>Checking this short link</h1>
+                <p>Please wait while S.url finds the destination.</p>
+                <div class="loading-line" aria-hidden="true"></div>
+            </section>
+
+            <section id="s-preview" class="panel panel--preview hidden">
+                <a class="brand" href="/surl/" aria-label="Back to S.url">
+                    <span class="brand-mark" aria-hidden="true">S</span>
+                    <span>S.url</span>
+                </a>
+                <div class="eyebrow">Preview</div>
+                <h1>Review this destination</h1>
+                <p>Open this link only if the destination is expected and trusted.</p>
+
+                <div class="destination-card">
+                    <div class="label">Destination URL</div>
+                    <div class="domain" id="preview-domain"></div>
+                    <div class="meta" id="preview-meta"></div>
+                </div>
+
+                <div class="browser-preview" id="browser-preview" hidden>
+                    <div class="browser-preview__bar" aria-hidden="true">
+                        <div class="browser-preview__dots">
+                            <span></span><span></span><span></span>
+                        </div>
+                        <div class="browser-preview__address" id="browser-preview-address"></div>
+                    </div>
+                    <iframe
+                        class="browser-preview__frame"
+                        id="preview-frame"
+                        title="Sandboxed destination preview"
+                        sandbox="allow-scripts allow-presentation"
+                        referrerpolicy="no-referrer"
+                        loading="lazy"
+                        credentialless
+                        allow="fullscreen; encrypted-media; picture-in-picture; web-share"
+                        allowfullscreen
+                    ></iframe>
+                    <div
+                        class="browser-preview__loading"
+                        id="browser-preview-loading"
+                        role="status"
+                        aria-live="polite"
+                    >
+                        <span class="spinner" aria-hidden="true"></span>
+                        <span>
+                            <strong id="browser-preview-loading-title"
+                                >Loading secure destination preview...</strong
+                            >
+                            <span id="browser-preview-loading-text"
+                                >The preview is isolated before the site appears here.</span
+                            >
+                        </span>
+                    </div>
+                    <div class="browser-preview__notice">
+                        The preview runs in an isolated sandbox. Some destinations block embedded
+                        previews, but the open button still uses the original URL.
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <a
+                        class="button button-primary"
+                        id="btn-proceed"
+                        href="#"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Continue to the destination URL"
+                    >
+                        Open destination
+                    </a>
+                    <button
+                        class="button"
+                        id="btn-cancel-preview"
+                        type="button"
+                        title="Return to S.url"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        class="button button-danger"
+                        id="btn-report-link"
+                        type="button"
+                        title="Open abuse report form"
+                    >
+                        Report this link
+                    </button>
+                </div>
+            </section>
+
+            <section id="s-password" class="panel hidden">
+                <a class="brand" href="/surl/" aria-label="Back to S.url">
+                    <span class="brand-mark" aria-hidden="true">S</span>
+                    <span>S.url</span>
+                </a>
+                <div class="eyebrow">Protected</div>
+                <h1>Password required</h1>
+                <p>This short link is protected. Enter the password to continue.</p>
+                <input
+                    class="input"
+                    type="password"
+                    id="pwd-input"
+                    placeholder="Enter password"
+                    autocomplete="current-password"
+                    title="Enter the password for this protected link"
+                />
+                <div class="error-text hidden" id="pwd-error"></div>
+                <div class="actions">
+                    <button
+                        class="button button-primary"
+                        id="btn-unlock"
+                        type="button"
+                        title="Unlock protected link"
+                    >
+                        Unlock
+                    </button>
+                    <button
+                        class="button"
+                        id="btn-cancel-password"
+                        type="button"
+                        title="Return to S.url"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </section>
+
+            <section id="s-error" class="panel hidden">
+                <a class="brand" href="/surl/" aria-label="Back to S.url">
+                    <span class="brand-mark" aria-hidden="true">S</span>
+                    <span>S.url</span>
+                </a>
+                <div class="eyebrow">Notice</div>
+                <h1 id="err-title">Link not found</h1>
+                <p id="err-msg">This short URL does not exist or has been removed.</p>
+                <div class="actions">
+                    <button
+                        class="button button-primary"
+                        id="btn-home"
+                        type="button"
+                        title="Return to S.url home"
+                    >
+                        Go to S.url
+                    </button>
+                </div>
+            </section>
+        </main>
+
+        <script src="./static-config.js"></script>
+        <script>
+            (function () {
+                'use strict';
+
+                var BASE_PATH = '/surl/';
+                var staticConfig = window.SURL_STATIC_CONFIG || {};
+                var scriptUrl = staticConfig.scriptUrl || '';
+                var REQUEST_TIMEOUT_MS = Number(staticConfig.requestTimeoutMs) || 30000;
+                var states = ['s-loading', 's-preview', 's-password', 's-error'];
+                var slug = location.pathname;
+                var currentPreviewDomain = '';
+                var currentPreviewExpiry = '';
+                var currentDestinationUrl = '';
+
+                if (slug.indexOf(BASE_PATH) === 0) slug = slug.substring(BASE_PATH.length);
+                slug = slug.replace(/^\/+|\/+$/g, '');
+                if (!slug) {
+                    location.replace(BASE_PATH);
+                    return;
+                }
+
+                var $ = function (id) {
+                    return document.getElementById(id);
+                };
+
+                function showState(id) {
+                    states.forEach(function (state) {
+                        $(state).classList.toggle('hidden', state !== id);
+                    });
+                }
+
+                function api(action, params) {
+                    if (!scriptUrl) return Promise.reject(new Error('SCRIPT_URL_MISSING'));
+
+                    var controller = new AbortController();
+                    var timeout = setTimeout(function () {
+                        controller.abort();
+                    }, REQUEST_TIMEOUT_MS);
+                    var url = new URL(scriptUrl);
+                    var body = Object.assign({ action: action }, params || {});
+
+                    Object.keys(body).forEach(function (key) {
+                        if (body[key] !== undefined && body[key] !== null) {
+                            url.searchParams.set(key, String(body[key]));
+                        }
+                    });
+
+                    return fetch(url.toString(), {
+                        method: 'GET',
+                        cache: 'no-store',
+                        redirect: 'follow',
+                        signal: controller.signal,
+                    })
+                        .then(function (response) {
+                            if (!response.ok) throw new Error('HTTP_' + response.status);
+                            return response.json();
+                        })
+                        .finally(function () {
+                            clearTimeout(timeout);
+                        });
+                }
+
+                function isSafeHttpUrl(value) {
+                    try {
+                        var url = new URL(value);
+                        return (
+                            (url.protocol === 'http:' || url.protocol === 'https:') &&
+                            !url.username &&
+                            !url.password
+                        );
+                    } catch (_) {
+                        return false;
+                    }
+                }
+
+                function fail(title, message) {
+                    $('err-title').textContent = title;
+                    $('err-msg').textContent = message;
+                    showState('s-error');
+                }
+
+                function updateDestinationSummary(value) {
+                    var meta = [];
+
+                    if (value && isSafeHttpUrl(value)) {
+                        $('preview-domain').textContent = value;
+                        try {
+                            meta.push('Host: ' + new URL(value).hostname);
+                        } catch (_) {
+                            if (currentPreviewDomain) meta.push('Host: ' + currentPreviewDomain);
+                        }
+                    } else {
+                        $('preview-domain').textContent = currentPreviewDomain
+                            ? 'Loading full destination...'
+                            : slug;
+                        if (currentPreviewDomain) meta.push('Host: ' + currentPreviewDomain);
+                    }
+
+                    if (currentPreviewExpiry)
+                        meta.push('Expires ' + new Date(currentPreviewExpiry).toLocaleString());
+                    $('preview-meta').textContent = meta.join(' | ');
+                }
+
+                function setOpenDestinationHref(value) {
+                    if (value && isSafeHttpUrl(value)) {
+                        $('btn-proceed').href = value;
+                        $('btn-proceed').removeAttribute('aria-disabled');
+                        return;
+                    }
+
+                    $('btn-proceed').href = '#';
+                    $('btn-proceed').setAttribute('aria-disabled', 'true');
+                }
+
+                function createEmbeddablePreviewUrl(value) {
+                    var url;
+
+                    try {
+                        url = new URL(value);
+                    } catch (_) {
+                        return '';
+                    }
+
+                    if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
+
+                    var hostname = url.hostname.replace(/^www\./, '').toLowerCase();
+                    var videoId = '';
+                    var listId = url.searchParams.get('list') || '';
+
+                    if (hostname === 'youtu.be') {
+                        videoId = url.pathname.split('/').filter(Boolean)[0] || '';
+                    }
+
+                    if (
+                        hostname === 'youtube.com' ||
+                        hostname === 'music.youtube.com' ||
+                        hostname === 'm.youtube.com'
+                    ) {
+                        if (url.pathname === '/watch') videoId = url.searchParams.get('v') || '';
+                        if (
+                            url.pathname.indexOf('/shorts/') === 0 ||
+                            url.pathname.indexOf('/embed/') === 0
+                        ) {
+                            videoId = url.pathname.split('/').filter(Boolean)[1] || '';
+                        }
+                    }
+
+                    if (/^[A-Za-z0-9_-]{6,}$/.test(videoId)) {
+                        var youtubeEmbed = new URL(
+                            'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(videoId),
+                        );
+                        if (/^[A-Za-z0-9_-]+$/.test(listId))
+                            youtubeEmbed.searchParams.set('list', listId);
+                        return youtubeEmbed.toString();
+                    }
+
+                    if (hostname === 'vimeo.com') {
+                        var vimeoId = url.pathname.split('/').filter(Boolean)[0] || '';
+                        if (/^\d+$/.test(vimeoId))
+                            return 'https://player.vimeo.com/video/' + encodeURIComponent(vimeoId);
+                    }
+
+                    if (hostname === 'open.spotify.com') {
+                        var spotifyParts = url.pathname.split('/').filter(Boolean);
+                        var spotifyType = spotifyParts[0] || '';
+                        var spotifyId = spotifyParts[1] || '';
+                        if (
+                            /^(album|artist|episode|playlist|show|track)$/.test(spotifyType) &&
+                            /^[A-Za-z0-9]+$/.test(spotifyId)
+                        ) {
+                            return (
+                                'https://open.spotify.com/embed/' + spotifyType + '/' + spotifyId
+                            );
+                        }
+                    }
+
+                    return url.toString();
+                }
+
+                function showDestinationPreviewLoading() {
+                    var preview = $('browser-preview');
+                    var frame = $('preview-frame');
+
+                    preview.hidden = false;
+                    preview.classList.add('browser-preview--loading');
+                    frame.removeAttribute('src');
+                    frame.onload = null;
+                    $('browser-preview-address').textContent = 'Preparing sandboxed preview...';
+                    $('browser-preview-loading-title').textContent =
+                        'Loading secure destination preview...';
+                    $('browser-preview-loading-text').textContent =
+                        'The preview is isolated before the site appears here.';
+                }
+
+                function setDestinationPreview(value) {
+                    var preview = $('browser-preview');
+                    var frame = $('preview-frame');
+                    var address = $('browser-preview-address');
+
+                    currentDestinationUrl = '';
+                    setOpenDestinationHref('');
+                    preview.hidden = true;
+                    preview.classList.remove('browser-preview--loading');
+                    frame.removeAttribute('src');
+                    frame.onload = null;
+                    address.textContent = '';
+
+                    if (!value || !isSafeHttpUrl(value)) return;
+
+                    currentDestinationUrl = value;
+                    setOpenDestinationHref(value);
+                    updateDestinationSummary(value);
+
+                    var previewUrl = createEmbeddablePreviewUrl(value);
+                    if (!previewUrl) return;
+
+                    preview.hidden = false;
+                    preview.classList.add('browser-preview--loading');
+                    var fallbackTimer = window.setTimeout(function () {
+                        if (
+                            frame.getAttribute('src') === previewUrl &&
+                            preview.classList.contains('browser-preview--loading')
+                        ) {
+                            $('browser-preview-loading-title').textContent =
+                                'Preview is still loading';
+                            $('browser-preview-loading-text').textContent =
+                                'This site may block embedded previews. You can still open the original destination.';
+                        }
+                    }, 4500);
+
+                    frame.onload = function () {
+                        window.clearTimeout(fallbackTimer);
+                        preview.classList.remove('browser-preview--loading');
+                    };
+                    frame.src = previewUrl;
+                    address.textContent = value;
+                }
+
+                function loadDestinationPreview(value) {
+                    if (value !== null) showDestinationPreviewLoading();
+
+                    if (value === null) {
+                        setDestinationPreview('');
+                        return;
+                    }
+
+                    if (value) {
+                        setDestinationPreview(value);
+                        return;
+                    }
+
+                    api('read', { name: slug, password: '' })
+                        .then(function (data) {
+                            if (data.ok && data.url) setDestinationPreview(data.url);
+                            else setDestinationPreview('');
+                        })
+                        .catch(function () {
+                            setDestinationPreview('');
+                        });
+                }
+
+                function goHome() {
+                    location.href = BASE_PATH;
+                }
+
+                function openReportPage() {
+                    var params = new URLSearchParams();
+                    params.set('slug', slug);
+                    if (currentDestinationUrl && isSafeHttpUrl(currentDestinationUrl)) {
+                        params.set('url', currentDestinationUrl);
+                    }
+                    window.location.href = BASE_PATH + 'report.html?' + params.toString();
+                }
+
+                function setButtonBusy(button, isBusy, busyText) {
+                    if (!button) return;
+                    if (!button.dataset.idleText) button.dataset.idleText = button.textContent;
+                    if ('disabled' in button) button.disabled = isBusy;
+                    if (isBusy) {
+                        button.setAttribute('aria-disabled', 'true');
+                        button.setAttribute('aria-busy', 'true');
+                    } else {
+                        button.removeAttribute('aria-disabled');
+                        button.removeAttribute('aria-busy');
+                    }
+                    button.textContent = isBusy ? busyText : button.dataset.idleText;
+                }
+
+                function prepareDestinationTab() {
+                    var destinationWindow = window.open('', '_blank');
+
+                    if (!destinationWindow) return null;
+
+                    try {
+                        destinationWindow.opener = null;
+                        destinationWindow.document.title = 'Opening destination - S.url';
+                        destinationWindow.document.body.style.cssText =
+                            'margin:0;min-height:100vh;display:grid;place-items:center;background:#101318;color:#eef2f4;font:16px system-ui,sans-serif';
+                        destinationWindow.document.body.textContent = 'Opening destination...';
+                    } catch (_) {
+                        // Some browsers restrict about:blank document access.
+                    }
+
+                    return destinationWindow;
+                }
+
+                function openResolvedDestination(url, destinationWindow) {
+                    if (destinationWindow && !destinationWindow.closed) {
+                        destinationWindow.location.replace(url);
+                        return;
+                    }
+
+                    if (!window.open(url, '_blank', 'noopener,noreferrer')) {
+                        fail(
+                            'New tab blocked',
+                            'Your browser blocked the destination tab. Allow popups for this site, then try again.',
+                        );
+                    }
+                }
+
+                function closeDestinationTab(destinationWindow) {
+                    try {
+                        if (destinationWindow && !destinationWindow.closed)
+                            destinationWindow.close();
+                    } catch (_) {
+                        // The tab may already be gone or no longer script-accessible.
+                    }
+                }
+
+                function resolveLink(password, destinationWindow, triggerButton) {
+                    setButtonBusy(triggerButton, true, 'Opening...');
+                    return api('read', { name: slug, password: password || '' })
+                        .then(function (data) {
+                            if (data.ok && data.url && isSafeHttpUrl(data.url)) {
+                                currentDestinationUrl = data.url;
+                                setOpenDestinationHref(data.url);
+                                openResolvedDestination(data.url, destinationWindow);
+                                return;
+                            }
+                            closeDestinationTab(destinationWindow);
+                            if (data.code === 'LINK_EXPIRED' || data.error === 'expired') {
+                                fail(
+                                    'Link expired',
+                                    'This short URL has expired and is no longer available.',
+                                );
+                            } else if (
+                                data.code === 'WRONG_PASSWORD' ||
+                                data.error === 'wrong_password'
+                            ) {
+                                showState('s-password');
+                                $('pwd-error').textContent = 'Incorrect password.';
+                                $('pwd-error').classList.remove('hidden');
+                            } else if (data.code === 'PASSWORD_REQUIRED' || data.needsPassword) {
+                                showState('s-password');
+                            } else {
+                                fail(
+                                    'Link not found',
+                                    'This short URL does not exist or has been removed.',
+                                );
+                            }
+                        })
+                        .catch(function () {
+                            closeDestinationTab(destinationWindow);
+                            fail('Network error', 'Could not resolve this link. Please try again.');
+                        })
+                        .finally(function () {
+                            setButtonBusy(triggerButton, false);
+                        });
+                }
+
+                $('btn-proceed').onclick = function (event) {
+                    if (currentDestinationUrl && isSafeHttpUrl(currentDestinationUrl)) return;
+                    event.preventDefault();
+                    resolveLink('', prepareDestinationTab(), $('btn-proceed'));
+                };
+                $('btn-report-link').onclick = openReportPage;
+                $('btn-cancel-preview').onclick = goHome;
+                $('btn-cancel-password').onclick = goHome;
+                $('btn-home').onclick = goHome;
+
+                function unlockProtectedLink() {
+                    var password = $('pwd-input').value.trim();
+                    if (!password) {
+                        $('pwd-error').textContent = 'Please enter a password.';
+                        $('pwd-error').classList.remove('hidden');
+                        return;
+                    }
+                    $('pwd-error').classList.add('hidden');
+                    resolveLink(password, prepareDestinationTab(), $('btn-unlock'));
+                }
+
+                $('btn-unlock').onclick = unlockProtectedLink;
+
+                $('pwd-input').onkeydown = function (event) {
+                    if (event.key === 'Enter') unlockProtectedLink();
+                };
+
+                api('preview', { name: slug })
+                    .then(function (data) {
+                        if (!data.ok) {
+                            fail(
+                                'Link not found',
+                                'This short URL does not exist or has been removed.',
+                            );
+                            return;
+                        }
+
+                        if (data.isExpired) {
+                            fail(
+                                'Link expired',
+                                'This short URL has expired and is no longer available.',
+                            );
+                            return;
+                        }
+
+                        if (data.hasPassword) {
+                            showState('s-password');
+                            $('pwd-input').focus();
+                            return;
+                        }
+
+                        currentPreviewDomain = data.domain || '';
+                        currentPreviewExpiry = data.expiry || '';
+                        updateDestinationSummary(data.previewUrl || '');
+                        loadDestinationPreview(data.previewUrl);
+                        showState('s-preview');
+                    })
+                    .catch(function () {
+                        fail('Network error', 'Could not load this link. Please try again.');
+                    });
+            })();
+        </script>
+    </body>
 </html>

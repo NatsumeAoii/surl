@@ -23,6 +23,8 @@ const requiredFiles = [
     'index.html',
     '404.html',
     'report.html',
+    '.nojekyll',
+    'static-config.js',
     'manifest.json',
     'favicon.svg',
     'sw.js',

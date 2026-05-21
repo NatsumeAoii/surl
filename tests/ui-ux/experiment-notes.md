@@ -21,11 +21,11 @@ The previous layout used a large heading area and delayed the profile/sidebar st
 - Removed the separate Privacy/History status card from the profile stack.
 - Bounded the Profile History submenu with a stable clamp height so saved links scroll internally instead of lengthening the page.
 - Shifted the light palette from beige-heavy surfaces to cooler neutral grays.
-- Added static `layout.test.ts` guards for the no-intro workspace, footer metadata, and bounded Profile submenu History placement.
+- Added static `tests/ui/layout.test.ts` guards for the no-intro workspace, footer metadata, and bounded Profile submenu History placement.
 
 ## Evidence
 
-- `npm test -- layout.test.ts` passes after the layout and history placement changes.
+- `npm test -- tests/ui/layout.test.ts` passes after the layout and history placement changes.
 - Full test, lint, format, and build verification should run before promoting this experiment.
 - Browser viewport review is still needed for final visual approval.
 

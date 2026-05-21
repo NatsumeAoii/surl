@@ -22,8 +22,8 @@
         "preview": "vite preview",
         "test": "vitest run",
         "lint": "eslint src --report-unused-disable-directives",
-        "format": "prettier --write src",
-        "format:check": "prettier --check src",
+        "format": "prettier --write . --ignore-unknown",
+        "format:check": "prettier --check . --ignore-unknown",
         "validate:deploy": "node scripts/validate-deploy-artifact.mjs",
         "verify:pages": "node scripts/verify-deployed-pages.mjs"
     },

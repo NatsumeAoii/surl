@@ -2,6 +2,60 @@
 
 All notable changes to SURL / S.url are documented here.
 
+## [1.0.3]
+
+### Added
+
+- Added `public/static-config.js` as the shared browser runtime config for the React app, GitHub Pages redirect fallback, and report page.
+- Added browser-side network lookup configuration for creator and reporter IP/region metadata, including timeout controls and missing-config fallbacks.
+- Added dedicated project structure for `src/app`, `src/components`, `src/lib`, `src/styles`, `apps-script`, and categorized tests under `tests/backend`, `tests/config`, `tests/support`, and `tests/ui`.
+- Added modular API, URL, fingerprint, QR code, request-progress, and app-helper internals with focused tests around each concern.
+- Added deploy artifact validation for `static-config.js` and stricter deployed Pages smoke checks that verify the built Vite module instead of unrelated script tags.
+- Added `.nojekyll` to the Pages artifact so GitHub Pages serves the uploaded static files without Jekyll processing.
+- Expanded `.gitattributes` with deterministic LF-normalized text files and binary asset handling across Windows and CI.
+- Added a Markdown `LICENSE.md` copy of the existing MIT license text.
+
+### Changed
+
+- Reorganized the React entry point so `src/main.tsx` imports the app from `src/app/App.tsx` and global CSS from `src/styles/index.css`.
+- Split the former single-file helpers into smaller modules for API transport/retry/errors, URL validation/alias/date helpers, fingerprint consent/device/network helpers, and QR encoding/rendering.
+- Moved Google Apps Script source from `google/` to `apps-script/` and kept legacy split scripts as explicit notices to deploy `apps-script/combined.gs` instead.
+- Moved root-level tests into domain-specific `tests/` folders and updated documentation references to the new paths.
+- Reworked `public/404.html` redirect states, destination preview, loading screen, owned errors, and report navigation to match the main S.url theme.
+- Reworked `public/report.html` as a separate themed report page with structured reason, description, destination, reporter metadata, previous-page navigation, and homepage navigation.
+- Changed destination opening from the redirect preview to use a new browser tab while preserving the resolved original URL.
+- Changed service-worker behavior so `public/static-config.js` is handled with network-first caching instead of being locked behind stale cache-first behavior.
+- Updated README, quick start, architecture, troubleshooting, contributing, security, and changelog docs to match the current folder structure and runtime config model.
+- Expanded formatting scripts from `src` only to the whole repository with Prettier `--ignore-unknown`.
+- Expanded `.gitignore` coverage for package-manager caches, package tarballs, temporary files, and local-only config files.
+
+### Fixed
+
+- Fixed the GitHub Actions `npm ci` failure by adding missing lockfile package records for `@emnapi/core@1.10.0` and `@emnapi/runtime@1.10.0`.
+- Fixed blank GitHub Pages deployments caused by raw Vite source HTML by validating the built `dist` artifact and smoke-checking deployed module assets.
+- Fixed local short-link dev testing so `/surl/<alias>` routes can load the static redirect fallback before production deployment.
+- Fixed stale and duplicate loading behavior by adding synchronous submit guards, request-progress states, and timer cleanup for app interactions.
+- Fixed static redirect/report API calls to fail safely when runtime config is missing instead of starting timers or controllers with empty service URLs.
+- Fixed static report description truncation to use a named maximum length instead of an unrelated hardcoded slice value.
+- Fixed old documentation references to `google/*`, `src/url.ts`, root-level tests, and the removed `routing.test.ts` path.
+
+### Security
+
+- Added Apps Script sheet schema support for access counts, last accessed timestamps, creator network metadata, and structured report metadata columns.
+- Preserved server-side URL validation, spreadsheet formula neutralization, payload caps, prototype-pollution guards, and rate limits while moving Apps Script into `apps-script/`.
+- Kept static destination previews sandboxed and documented that iframe preview failures caused by destination CSP or `X-Frame-Options` are expected.
+
+### Performance
+
+- Reduced repeated Apps Script duplicate-check work by keeping reusable URL lookup behavior covered by backend regression tests.
+- Kept request progress responsive for long Apps Script calls without shortening the underlying request timeout.
+
+### Documentation
+
+- Documented the shared `public/static-config.js` workflow, including when `.env` `VITE_SCRIPT_URL` is only a React-local override.
+- Documented the current project structure, quality gates, GitHub Pages source requirement, local short-link testing path, and known setup pitfalls.
+- Documented that `SECURITY.md` and `CODE_OF_CONDUCT.md` still require a verified private maintainer contact before public community use.
+
 ## [1.0.2-b] - 2026-05-18
 
 ### Added

@@ -91,9 +91,12 @@ async function main() {
         throw new Error(rawSourceMessage);
     }
 
-    const scriptMatch = indexHtml.match(/<script\b[^>]*\bsrc="([^"]+\.js)"[^>]*>/);
+    const scriptMatches = [...indexHtml.matchAll(/<script\b[^>]*\bsrc="([^"]+\.js)"[^>]*>/g)];
+    const scriptMatch = scriptMatches.find(
+        (match) => /\btype=["']module["']/.test(match[0]) && match[1].includes('assets/'),
+    );
     if (!scriptMatch) {
-        throw new Error('Deployed page does not reference a built JavaScript asset.');
+        throw new Error('Deployed page does not reference a built module asset.');
     }
 
     const manifestMatch = indexHtml.match(/<link\b[^>]*\brel="manifest"[^>]*\bhref="([^"]+)"/);

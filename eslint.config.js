@@ -38,6 +38,6 @@ export default [
         },
     },
     {
-        ignores: ['dist/**', 'node_modules/**', 'public/**', 'google/**'],
+        ignores: ['dist/**', 'node_modules/**', 'public/**', 'apps-script/**'],
     },
 ];

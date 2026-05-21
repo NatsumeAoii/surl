@@ -4,11 +4,12 @@
 
 Check:
 
-- `.env` contains a valid `VITE_SCRIPT_URL`.
-- Apps Script is deployed from `google/combined.gs`.
+- `public/static-config.js` contains a valid `scriptUrl`.
+- `.env` does not contain an outdated `VITE_SCRIPT_URL` override.
+- Apps Script is deployed from `apps-script/combined.gs`.
 - Web app access is set to `Anyone`.
 - The Google Sheet has a `database` tab.
-- `SCRIPT_URL` in `public/404.html` and `API_URL` in `public/report.html` match the deployed Apps Script URL.
+- `public/404.html`, `public/report.html`, and the React app are loading `public/static-config.js`.
 
 ## GitHub Action Fails at `npm ci`
 
@@ -25,7 +26,7 @@ Commit the updated `package-lock.json` when dependency metadata changes.
 
 ## Browser Shows CORS Errors for Apps Script
 
-Confirm the deployed URL points to the Apps Script web app generated from `google/combined.gs`. The frontend uses GET requests because that path is CORS-compatible for this Apps Script setup.
+Confirm the deployed URL points to the Apps Script web app generated from `apps-script/combined.gs`. The frontend uses GET requests because that path is CORS-compatible for this Apps Script setup.
 
 After editing Apps Script, deploy a new Apps Script version. Saving the script alone is not enough for the public web app URL.
 
@@ -72,11 +73,11 @@ The project is currently deployed under `/surl/`. If that path changes, update r
 - `public/sw.js`
 - `public/robots.txt`
 - `public/sitemap.xml`
-- `google/combined.gs`
+- `apps-script/combined.gs`
 
 Then run:
 
 ```bash
-npm test -- routing.test.ts
+npm test -- tests/config/routing.test.ts
 npm run build
 ```

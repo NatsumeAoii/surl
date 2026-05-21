@@ -10,10 +10,7 @@
     "theme_color": "#0f0f1a",
     "orientation": "portrait-primary",
     "lang": "en",
-    "categories": [
-        "productivity",
-        "utilities"
-    ],
+    "categories": ["productivity", "utilities"],
     "icons": [
         {
             "src": "favicon.svg",
