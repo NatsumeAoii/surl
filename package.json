@@ -24,6 +24,8 @@
         "lint": "eslint src --report-unused-disable-directives",
         "format": "prettier --write . --ignore-unknown",
         "format:check": "prettier --check . --ignore-unknown",
+        "prepare": "node scripts/install-git-hooks.mjs",
+        "verify:lockfile": "node scripts/check-package-lock.mjs",
         "validate:deploy": "node scripts/validate-deploy-artifact.mjs",
         "verify:pages": "node scripts/verify-deployed-pages.mjs"
     },
